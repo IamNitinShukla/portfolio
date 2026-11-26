@@ -238,6 +238,10 @@ export default function Contact() {
 
       const data = await res.json().catch(() => ({}));
 
+      if (data && data.newToken) {
+        setOtpToken(data.newToken);
+      }
+
       if (!res.ok || !data.success) {
         throw new Error(data.error || "Verification failed. Please check the code and try again.");
       }

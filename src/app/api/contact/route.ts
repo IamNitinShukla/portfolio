@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
+import os from "os";
 import path from "path";
 import { verifyAndConsumeOtp } from "@/lib/otpStore";
-import { getSmtpTransporter, getSmtpConfig } from "@/lib/smtp";
+import { getSmtpTransporter, getSmtpConfig, formatSmtpError } from "@/lib/smtp";
+
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+export const maxDuration = 30;
 
 function escapeHtml(str: string): string {
   return str
@@ -77,7 +82,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 4. Verify and consume OTP atomically
+    // 4. Verify and consume OTP atomically (Stateless HMAC verification works across all serverless lambdas)
     const otpValidation = verifyAndConsumeOtp(
       trimmedToken,
       trimmedEmail,
@@ -92,6 +97,7 @@ export async function POST(req: NextRequest) {
           success: false,
           error: otpValidation.error || "Email verification failed.",
           attemptsRemaining: otpValidation.attemptsRemaining,
+          newToken: otpValidation.newToken,
         },
         { status: 400 }
       );
@@ -105,7 +111,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          error: "Gmail SMTP delivery is not configured on this server (SMTP_PASS missing in .env.local). Please email snitin.tech@gmail.com directly.",
+          error: "Gmail SMTP delivery is not configured on this server (SMTP_PASS is not set in Vercel Environment Variables). Please email snitin.tech@gmail.com directly.",
           configured: false,
         },
         { status: 503 }
@@ -131,17 +137,14 @@ export async function POST(req: NextRequest) {
       verified: true,
     };
 
-    // 6. Persistent local audit log
+    // 6. Safe audit log (Uses writable os.tmpdir() on Vercel without throwing EROFS)
     try {
-      const dataDir = path.join(process.cwd(), "data");
-      if (!fs.existsSync(dataDir)) {
-        fs.mkdirSync(dataDir, { recursive: true });
+      const auditDir = path.join(os.tmpdir(), "portfolio_audit");
+      if (!fs.existsSync(auditDir)) {
+        fs.mkdirSync(auditDir, { recursive: true });
       }
-      const logFile = path.join(dataDir, "inquiries.jsonl");
-      fs.appendFileSync(logFile, JSON.stringify(submissionRecord) + "\n", "utf8");
-    } catch (fsErr) {
-      console.warn("[Contact API] Local log write warning:", fsErr);
-    }
+      fs.appendFileSync(path.join(auditDir, "inquiries.jsonl"), JSON.stringify(submissionRecord) + "\n", "utf8");
+    } catch {}
 
     // 7. Send primary inquiry email to Nitin's Gmail
     const sanitizedName = escapeHtml(trimmedName);
@@ -258,11 +261,11 @@ ${smtpConfig.contactEmail}`;
     });
   } catch (err: unknown) {
     console.error("[Contact API] Error handling submission:", err);
-    const message = err instanceof Error ? err.message : "Internal server error";
+    const formattedError = formatSmtpError(err);
     return NextResponse.json(
       {
         success: false,
-        error: `Failed to deliver email: ${message}. Please email snitin.tech@gmail.com directly.`,
+        error: `Failed to deliver email: ${formattedError}`,
       },
       { status: 500 }
     );

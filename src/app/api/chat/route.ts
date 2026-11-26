@@ -9,6 +9,7 @@ import {
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+export const maxDuration = 45;
 
 // In-memory sliding-window rate limiter per IP address
 interface RateLimitRecord {
@@ -156,7 +157,7 @@ export async function POST(req: NextRequest) {
   // Prioritize low-latency responsive Flash models
   const envModel = process.env.GEMINI_MODEL;
   const primaryModel = envModel && envModel.trim() ? envModel.trim() : "gemini-flash-lite-latest";
-  const fastFallbacks = ["gemini-flash-lite-latest", "gemini-3.5-flash-lite"];
+  const fastFallbacks = ["gemini-flash-lite-latest", "gemini-2.5-flash", "gemini-3.5-flash-lite"];
   const candidateModels = Array.from(new Set([primaryModel, ...fastFallbacks]));
 
   const geminiPayload = {

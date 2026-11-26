@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requestOtp } from "@/lib/otpStore";
-import { getSmtpTransporter, getSmtpConfig } from "@/lib/smtp";
+import { getSmtpTransporter, getSmtpConfig, formatSmtpError } from "@/lib/smtp";
+
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+export const maxDuration = 30;
 
 function escapeHtml(str: string): string {
   return str
@@ -67,7 +71,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          error: "Gmail SMTP delivery is not configured on this server (SMTP_PASS missing in .env.local). Please email snitin.tech@gmail.com directly.",
+          error: "Gmail SMTP delivery is not configured on this server (SMTP_PASS is not set in Vercel Environment Variables). Please email snitin.tech@gmail.com directly.",
           configured: false,
         },
         { status: 503 }
@@ -146,11 +150,11 @@ ${smtpConfig.user}`;
     });
   } catch (err: unknown) {
     console.error("[OTP Route] Dispatch error:", err);
-    const message = err instanceof Error ? err.message : "Failed to deliver verification code";
+    const formattedError = formatSmtpError(err);
     return NextResponse.json(
       {
         success: false,
-        error: `Could not send verification email: ${message}. Please check your address or email snitin.tech@gmail.com directly.`,
+        error: `Could not send verification email: ${formattedError}`,
       },
       { status: 500 }
     );

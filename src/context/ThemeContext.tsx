@@ -12,35 +12,19 @@ interface ThemeContextType {
 }
 
 const ThemeContext = createContext<ThemeContextType>({
-  theme: "light",
+  theme: "dark",
   toggleTheme: () => {},
   setTheme: () => {},
   mounted: false,
 });
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>("light");
+  const [theme, setThemeState] = useState<Theme>("dark");
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setThemeState(document.documentElement.classList.contains("dark") ? "dark" : "light");
     setMounted(true);
-    try {
-      const saved = localStorage.getItem("portfolio-theme") as Theme | null;
-      if (saved === "dark" || saved === "light") {
-        setThemeState(saved);
-        if (saved === "dark") {
-          document.documentElement.classList.add("dark");
-        } else {
-          document.documentElement.classList.remove("dark");
-        }
-      } else {
-        // Default to LIGHT mode
-        setThemeState("light");
-        document.documentElement.classList.remove("dark");
-      }
-    } catch {
-      // localStorage may fail in private mode
-    }
   }, []);
 
   const setTheme = (newTheme: Theme) => {

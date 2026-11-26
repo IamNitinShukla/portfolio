@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+export const maxDuration = 30;
 
 // Sliding-window rate limiter per client IP
 interface RateLimitRecord {
@@ -79,7 +80,7 @@ export async function POST(req: NextRequest) {
 
   // 4. Model Candidate Hierarchy
   const primaryModel = process.env.GEMINI_MODEL?.trim() || "gemini-flash-lite-latest";
-  const candidateModels = Array.from(new Set([primaryModel, "gemini-flash-lite-latest", "gemini-3.5-flash-lite"]));
+  const candidateModels = Array.from(new Set([primaryModel, "gemini-flash-lite-latest", "gemini-2.5-flash", "gemini-3.5-flash-lite"]));
 
   const geminiPayload = {
     systemInstruction: {

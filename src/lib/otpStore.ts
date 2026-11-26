@@ -1,31 +1,134 @@
 import crypto from "crypto";
 import fs from "fs";
+import os from "os";
 import path from "path";
 
 export interface StoredOtpRecord {
-  token: string; // Public session token sent to client (opaque hex)
-  email: string; // Lowercased normalized visitor email
-  submissionHash: string; // SHA-256 of visitor name + message to prevent tamper
-  otpHash: string; // SHA-256(salt + otp)
-  salt: string; // Cryptographic salt
+  token: string;
+  email: string;
+  submissionHash: string;
+  otpHash: string;
+  salt: string;
   createdAt: number;
-  expiresAt: number; // 5 minutes after creation
-  resendAvailableAt: number; // 60 seconds cooldown after creation
-  attemptsRemaining: number; // Starts at 5, decrements on failure
+  expiresAt: number;
+  resendAvailableAt: number;
+  attemptsRemaining: number;
   verified: boolean;
   consumed: boolean;
+}
+
+interface OtpTokenPayload {
+  v: number;
+  email: string;
+  subHash: string;
+  otpHash: string;
+  salt: string;
+  exp: number;
+  iat: number;
+  rat: number;
+  att: number;
 }
 
 const OTP_TTL_MS = 5 * 60 * 1000; // 5 minutes validity
 const RESEND_COOLDOWN_MS = 60 * 1000; // 60 seconds cooldown
 const MAX_VERIFICATION_ATTEMPTS = 5;
-
-// In-memory rate limiting map for OTP generation: IP -> timestamps[]
-const ipRateLimitMap = new Map<string, number[]>();
-const emailRateLimitMap = new Map<string, number[]>();
 const RATE_WINDOW_MS = 10 * 60 * 1000; // 10 minutes
 const MAX_PER_IP = 6;
 const MAX_PER_EMAIL = 4;
+
+// In-memory rate limiting & consumed tokens set
+const ipRateLimitMap = new Map<string, number[]>();
+const emailRateLimitMap = new Map<string, number[]>();
+const consumedTokenSignatures = new Set<string>();
+
+// Writable temporary directory on Vercel AWS Lambda / local
+const TMP_DIR = path.join(os.tmpdir(), "portfolio_otp_cache");
+const CONSUMED_TOKENS_FILE = path.join(TMP_DIR, "consumed_signatures.json");
+
+function ensureTmpDir(): void {
+  try {
+    if (!fs.existsSync(TMP_DIR)) {
+      fs.mkdirSync(TMP_DIR, { recursive: true });
+    }
+  } catch {}
+}
+
+function loadConsumedSignatures(): void {
+  try {
+    ensureTmpDir();
+    if (fs.existsSync(CONSUMED_TOKENS_FILE)) {
+      const raw = fs.readFileSync(CONSUMED_TOKENS_FILE, "utf8");
+      const list: string[] = JSON.parse(raw);
+      for (const sig of list) {
+        consumedTokenSignatures.add(sig);
+      }
+    }
+  } catch {}
+}
+
+function persistConsumedSignature(signature: string): void {
+  consumedTokenSignatures.add(signature);
+  try {
+    ensureTmpDir();
+    const arr = Array.from(consumedTokenSignatures).slice(-2000); // keep last 2000
+    fs.writeFileSync(CONSUMED_TOKENS_FILE, JSON.stringify(arr), "utf8");
+  } catch {}
+}
+
+// Initial load
+loadConsumedSignatures();
+
+function getSigningKey(): Buffer {
+  const secretSource =
+    process.env.SMTP_PASS ||
+    process.env.GEMINI_API_KEY ||
+    process.env.VERCEL_GIT_COMMIT_SHA ||
+    "portfolio_otp_stateless_signing_salt_2026_fixed";
+  return crypto.createHash("sha256").update(secretSource).digest();
+}
+
+function signPayload(payload: OtpTokenPayload): string {
+  const json = JSON.stringify(payload);
+  const data = Buffer.from(json, "utf8").toString("base64url");
+  const hmac = crypto
+    .createHmac("sha256", getSigningKey())
+    .update(data)
+    .digest("hex");
+  return `otptkn_${data}.${hmac}`;
+}
+
+function verifyAndParseToken(token: string): { ok: boolean; payload?: OtpTokenPayload; signature?: string; error?: string } {
+  if (!token || !token.startsWith("otptkn_")) {
+    return { ok: false, error: "Invalid verification session token." };
+  }
+
+  const raw = token.slice("otptkn_".length);
+  const parts = raw.split(".");
+  if (parts.length !== 2) {
+    return { ok: false, error: "Malformed verification session token." };
+  }
+
+  const [data, signature] = parts;
+  const expectedHmac = crypto
+    .createHmac("sha256", getSigningKey())
+    .update(data)
+    .digest("hex");
+
+  const sigBuf = Buffer.from(signature, "hex");
+  const expBuf = Buffer.from(expectedHmac, "hex");
+
+  if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
+    return { ok: false, error: "Tampered or invalid verification session signature." };
+  }
+
+  try {
+    const json = Buffer.from(data, "base64url").toString("utf8");
+    const payload: OtpTokenPayload = JSON.parse(json);
+    return { ok: true, payload, signature };
+  } catch {
+    return { ok: false, error: "Unable to parse verification session payload." };
+  }
+}
 
 function isRateLimited(map: Map<string, number[]>, key: string, max: number): boolean {
   const now = Date.now();
@@ -38,57 +141,6 @@ function isRateLimited(map: Map<string, number[]>, key: string, max: number): bo
   validTimes.push(now);
   map.set(key, validTimes);
   return false;
-}
-
-// Persistent storage file
-const DATA_DIR = path.join(process.cwd(), "data");
-const STORE_FILE = path.join(DATA_DIR, "otp_store.json");
-
-function ensureStoreDir(): void {
-  if (!fs.existsSync(DATA_DIR)) {
-    try {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
-    } catch {}
-  }
-}
-
-// Load records from persistent disk store
-function loadRecords(): Map<string, StoredOtpRecord> {
-  ensureStoreDir();
-  const map = new Map<string, StoredOtpRecord>();
-  if (!fs.existsSync(STORE_FILE)) {
-    return map;
-  }
-  try {
-    const raw = fs.readFileSync(STORE_FILE, "utf8");
-    const arr: StoredOtpRecord[] = JSON.parse(raw);
-    const now = Date.now();
-    for (const r of arr) {
-      // Filter out records that expired more than 10 minutes ago
-      if (r.expiresAt + 10 * 60 * 1000 > now) {
-        map.set(r.token, r);
-      }
-    }
-  } catch (err) {
-    console.error("[OTP Store] Error reading persistent store:", err);
-  }
-  return map;
-}
-
-// Atomically save records to persistent disk store
-function saveRecords(map: Map<string, StoredOtpRecord>): void {
-  ensureStoreDir();
-  const arr = Array.from(map.values());
-  const tmpFile = `${STORE_FILE}.${Date.now()}.${Math.random().toString(36).slice(2, 6)}.tmp`;
-  try {
-    fs.writeFileSync(tmpFile, JSON.stringify(arr, null, 2), "utf8");
-    fs.renameSync(tmpFile, STORE_FILE);
-  } catch (err) {
-    console.error("[OTP Store] Atomic save failed:", err);
-    try {
-      if (fs.existsSync(tmpFile)) fs.unlinkSync(tmpFile);
-    } catch {}
-  }
 }
 
 export function computeSubmissionHash(name: string, email: string, message: string): string {
@@ -106,7 +158,8 @@ export interface RequestOtpResult {
 }
 
 /**
- * Generate a cryptographically secure 6-digit OTP and store its hash
+ * Generate a cryptographically secure 6-digit OTP and encode it into a stateless signed token.
+ * Highly scalable on Vercel Serverless with zero multi-instance sync or disk errors.
  */
 export function requestOtp(
   email: string,
@@ -120,82 +173,51 @@ export function requestOtp(
   if (isRateLimited(ipRateLimitMap, ip, MAX_PER_IP)) {
     return {
       ok: false,
-      error: "Too many verification requests from this IP. Please wait 10 minutes before trying again.",
+      error: "Too many verification attempts from your network. Please wait a few minutes before trying again.",
     };
   }
 
   if (isRateLimited(emailRateLimitMap, normalizedEmail, MAX_PER_EMAIL)) {
     return {
       ok: false,
-      error: "Too many verification codes requested for this email. Please wait 10 minutes or check your spam folder.",
+      error: "Too many verification requests for this email address. Please check your inbox or wait a few minutes.",
     };
   }
 
-  const records = loadRecords();
-  const now = Date.now();
-
-  // Check if an unexpired record for this email already exists and cooldown has not elapsed
-  const recordsArr = Array.from(records.values());
-  for (const record of recordsArr) {
-    if (record.email === normalizedEmail && !record.verified && record.expiresAt > now) {
-      if (record.resendAvailableAt > now) {
-        const remainingCooldown = Math.ceil((record.resendAvailableAt - now) / 1000);
-        return {
-          ok: false,
-          error: `Please wait ${remainingCooldown}s before requesting another verification code.`,
-          resendInSeconds: remainingCooldown,
-        };
-      }
-    }
-  }
-
-  // 2. Generate cryptographically secure 6-digit OTP
-  // crypto.randomInt is cryptographically strong (uniform distribution without modulo bias)
+  // 2. Generate 6-digit cryptographic OTP (100000 - 999999)
   const otpNumber = crypto.randomInt(100000, 1000000);
-  const plaintextOtp = otpNumber.toString();
+  const plainOtp = otpNumber.toString();
 
-  // 3. Salt and hash the OTP (SHA-256)
+  // 3. Cryptographic salt & SHA-256 hash
   const salt = crypto.randomBytes(16).toString("hex");
   const otpHash = crypto
     .createHash("sha256")
-    .update(salt + plaintextOtp)
+    .update(salt + plainOtp)
     .digest("hex");
 
-  // 4. Generate opaque session token for client binding
-  const token = `otptkn_${crypto.randomBytes(24).toString("hex")}`;
+  const now = Date.now();
   const submissionHash = computeSubmissionHash(name, normalizedEmail, message);
 
-  // Invalidate previous unconsumed records for this email
-  const entriesArr = Array.from(records.entries());
-  for (const [k, v] of entriesArr) {
-    if (v.email === normalizedEmail && !v.consumed) {
-      records.delete(k);
-    }
-  }
-
-  const newRecord: StoredOtpRecord = {
-    token,
+  const payload: OtpTokenPayload = {
+    v: 1,
     email: normalizedEmail,
-    submissionHash,
+    subHash: submissionHash,
     otpHash,
     salt,
-    createdAt: now,
-    expiresAt: now + OTP_TTL_MS,
-    resendAvailableAt: now + RESEND_COOLDOWN_MS,
-    attemptsRemaining: MAX_VERIFICATION_ATTEMPTS,
-    verified: false,
-    consumed: false,
+    iat: now,
+    exp: now + OTP_TTL_MS,
+    rat: now + RESEND_COOLDOWN_MS,
+    att: MAX_VERIFICATION_ATTEMPTS,
   };
 
-  records.set(token, newRecord);
-  saveRecords(records);
+  const token = signPayload(payload);
 
   return {
     ok: true,
     token,
-    otp: plaintextOtp, // Caller dispatches this via SMTP email; never returned to HTTP client
-    expiresInSeconds: 300,
-    resendInSeconds: 60,
+    otp: plainOtp, // ONLY returned to route handler for immediate SMTP dispatch
+    expiresInSeconds: Math.floor(OTP_TTL_MS / 1000),
+    resendInSeconds: Math.floor(RESEND_COOLDOWN_MS / 1000),
   };
 }
 
@@ -203,123 +225,113 @@ export interface VerifyOtpResult {
   ok: boolean;
   error?: string;
   attemptsRemaining?: number;
+  newToken?: string;
 }
 
 /**
- * Validate an entered OTP against the stored hash and submission payload
+ * Verify submitted OTP against stateless cryptographic token.
  */
 export function verifyAndConsumeOtp(
   token: string,
   email: string,
-  enteredOtp: string,
+  otp: string,
   name: string,
   message: string
 ): VerifyOtpResult {
-  const normalizedEmail = email.trim().toLowerCase();
-  const cleanEnteredOtp = (enteredOtp || "").trim();
-
-  if (!token || !cleanEnteredOtp) {
-    return { ok: false, error: "Verification token and code are required." };
+  const parsed = verifyAndParseToken(token);
+  if (!parsed.ok || !parsed.payload || !parsed.signature) {
+    return { ok: false, error: parsed.error || "Invalid verification session." };
   }
 
-  const records = loadRecords();
-  const record = records.get(token);
+  const { payload, signature } = parsed;
 
-  if (!record) {
-    return {
-      ok: false,
-      error: "Verification session not found or expired. Please request a new code.",
-    };
-  }
-
-  const now = Date.now();
-
-  // 1. Check expiration
-  if (record.expiresAt < now) {
-    records.delete(token);
-    saveRecords(records);
-    return {
-      ok: false,
-      error: "Verification code has expired. Please request a new code.",
-    };
-  }
-
-  // 2. Check email binding
-  if (record.email !== normalizedEmail) {
-    return {
-      ok: false,
-      error: "Email address does not match the active verification session.",
-    };
-  }
-
-  // 3. Prevent replay attacks / token reuse
-  if (record.consumed) {
+  // 1. Check replay attack
+  if (consumedTokenSignatures.has(signature)) {
     return {
       ok: false,
       error: "This verification code has already been used. Please request a new code.",
     };
   }
 
-  // 4. Verify message payload has not been tampered with
+  // 2. Check expiration
+  const now = Date.now();
+  if (now > payload.exp) {
+    return {
+      ok: false,
+      error: "Verification code has expired (5-minute limit). Please request a fresh code.",
+    };
+  }
+
+  // 3. Check attempts remaining
+  if (payload.att <= 0) {
+    persistConsumedSignature(signature);
+    return {
+      ok: false,
+      error: "Too many failed verification attempts. Please request a fresh verification code.",
+      attemptsRemaining: 0,
+    };
+  }
+
+  // 4. Validate email binding
+  const normalizedEmail = email.trim().toLowerCase();
+  if (payload.email !== normalizedEmail) {
+    return {
+      ok: false,
+      error: "The email address does not match the verification session. Please request a new code.",
+    };
+  }
+
+  // 5. Validate submission payload tamper protection
   const currentSubmissionHash = computeSubmissionHash(name, normalizedEmail, message);
-  if (record.submissionHash !== currentSubmissionHash) {
+  if (payload.subHash !== currentSubmissionHash) {
     return {
       ok: false,
       error: "The message or sender details were modified after code generation. Please request a fresh code.",
     };
   }
 
-  // 5. Check remaining attempts
-  if (record.attemptsRemaining <= 0) {
-    records.delete(token);
-    saveRecords(records);
-    return {
-      ok: false,
-      error: "Maximum verification attempts exceeded. Please request a new code.",
-      attemptsRemaining: 0,
-    };
-  }
-
-  // 6. Verify OTP hash using timingSafeEqual
-  const enteredHash = crypto
+  // 6. Verify OTP using constant-time comparison
+  const submittedOtp = otp.trim();
+  const computedHash = crypto
     .createHash("sha256")
-    .update(record.salt + cleanEnteredOtp)
+    .update(payload.salt + submittedOtp)
     .digest("hex");
 
-  const hashBuffer = Buffer.from(record.otpHash, "hex");
-  const enteredBuffer = Buffer.from(enteredHash, "hex");
+  const computedBuf = Buffer.from(computedHash, "hex");
+  const expectedBuf = Buffer.from(payload.otpHash, "hex");
 
   const isMatch =
-    hashBuffer.length === enteredBuffer.length &&
-    crypto.timingSafeEqual(hashBuffer, enteredBuffer);
+    computedBuf.length === expectedBuf.length &&
+    crypto.timingSafeEqual(computedBuf, expectedBuf);
 
   if (!isMatch) {
-    record.attemptsRemaining -= 1;
-    if (record.attemptsRemaining <= 0) {
-      records.delete(token);
-      saveRecords(records);
+    const remaining = payload.att - 1;
+    if (remaining <= 0) {
+      persistConsumedSignature(signature);
       return {
         ok: false,
-        error: "Maximum verification attempts exceeded. Please request a new code.",
+        error: "Incorrect verification code. Maximum attempts reached. Please request a new code.",
         attemptsRemaining: 0,
       };
     }
 
-    records.set(token, record);
-    saveRecords(records);
+    // Generate updated token with decremented attempts
+    const updatedPayload: OtpTokenPayload = {
+      ...payload,
+      att: remaining,
+    };
+    const newToken = signPayload(updatedPayload);
 
     return {
       ok: false,
-      error: `Incorrect verification code. ${record.attemptsRemaining} attempt${record.attemptsRemaining === 1 ? "" : "s"} remaining.`,
-      attemptsRemaining: record.attemptsRemaining,
+      error: `Incorrect verification code. ${remaining} attempt${remaining === 1 ? "" : "s"} remaining.`,
+      attemptsRemaining: remaining,
+      newToken,
     };
   }
 
-  // 7. Successful verification: mark as consumed immediately (one-time use)
-  record.verified = true;
-  record.consumed = true;
-  records.set(token, record);
-  saveRecords(records);
+  // 7. Successful verification: Consume token atomically to prevent replay
+  persistConsumedSignature(signature);
 
   return { ok: true };
 }

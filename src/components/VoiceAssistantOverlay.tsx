@@ -30,6 +30,8 @@ function getMascotAnimationSrc(voiceState: VoiceState, isMuted: boolean): string
   switch (voiceState) {
     case "speaking":
       return "/mascot/animations/wave.webm";
+    case "processing":
+    case "generating":
     case "thinking":
       return "/mascot/animations/look-around.webm";
     case "listening":
@@ -66,7 +68,9 @@ export default function VoiceAssistantOverlay({
     ? isUserSpeaking
       ? "Listening to you..."
       : "Listening..."
-    : voiceState === "thinking"
+    : voiceState === "processing"
+    ? "Processing speech..."
+    : voiceState === "generating" || voiceState === "thinking"
     ? "Thinking..."
     : voiceState === "speaking"
     ? "Friday is speaking..."
@@ -81,7 +85,7 @@ export default function VoiceAssistantOverlay({
     ? "Tap anywhere to interrupt"
     : interimTranscript
     ? `"${interimTranscript}"`
-    : voiceState === "thinking" && finalTranscript
+    : (voiceState === "generating" || voiceState === "processing" || voiceState === "thinking") && finalTranscript
     ? `"${finalTranscript}"`
     : voiceState === "listening"
     ? isUserSpeaking
@@ -115,7 +119,7 @@ export default function VoiceAssistantOverlay({
                 ? "bg-neutral-600"
                 : isSpeaking
                 ? "animate-pulse bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]"
-                : voiceState === "thinking"
+                : voiceState === "generating" || voiceState === "processing" || voiceState === "thinking"
                 ? "animate-pulse bg-red-400"
                 : isUserSpeaking
                 ? "animate-ping bg-red-500"
@@ -175,7 +179,7 @@ export default function VoiceAssistantOverlay({
                     background:
                       "radial-gradient(circle, rgba(239,68,68,0.6) 0%, rgba(220,38,38,0.3) 45%, transparent 70%)",
                   }
-                : voiceState === "thinking"
+                : voiceState === "generating" || voiceState === "processing" || voiceState === "thinking"
                 ? {
                     scale: [0.95, 1.18, 0.95],
                     opacity: [0.4, 0.7, 0.4],
