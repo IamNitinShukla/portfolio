@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675" width="1200" height="675">
+  <rect width="1200" height="675" fill="#0A0B0E" />
+  <rect width="1200" height="50" fill="#12151C" />
+  <circle cx="30" cy="25" r="7" fill="#ff5f56" />
+  <circle cx="55" cy="25" r="7" fill="#ffbd2e" />
+  <circle cx="80" cy="25" r="7" fill="#27c93f" />
+  <text x="600" y="32" font-family="monospace" font-size="14" fill="#888" text-anchor="middle">rook-db // LSM-Tree Embedded Storage Engine</text>
+
+  <!-- Architecture Flow -->
+  <rect x="50" y="90" width="1100" height="540" rx="8" fill="#10131B" stroke="#1E2330" />
+  <text x="80" y="135" font-family="system-ui" font-weight="700" font-size="20" fill="#F5F3EE">Write Path Architecture: WAL + Memtable + SSTable Compaction</text>
+
+  <!-- Box 1: WAL -->
+  <rect x="80" y="180" width="280" height="220" rx="8" fill="#161B26" stroke="#252D3F" />
+  <text x="105" y="220" font-family="system-ui" font-weight="700" font-size="16" fill="#F5F3EE">Write-Ahead Log (WAL)</text>
+  <text x="105" y="245" font-family="monospace" font-size="12" fill="#888">Append-Only Sequential I/O</text>
+  <line x1="105" y1="260" x2="335" y2="260" stroke="#252D3F" />
+  <text x="105" y="290" font-family="monospace" font-size="11" fill="#E8FF70">entry_001 [SET k1=val]</text>
+  <text x="105" y="315" font-family="monospace" font-size="11" fill="#E8FF70">entry_002 [SET k2=val]</text>
+  <text x="105" y="340" font-family="monospace" font-size="11" fill="#E8FF70">entry_003 [DEL k3]</text>
+
+  <!-- Arrow -->
+  <line x1="360" y1="290" x2="430" y2="290" stroke="#E8FF70" stroke-width="3" />
+  <polygon points="430,290 420,283 420,297" fill="#E8FF70" />
+
+  <!-- Box 2: Memtable -->
+  <rect x="440" y="180" width="310" height="220" rx="8" fill="#161B26" stroke="#E8FF70" stroke-width="1.5" />
+  <text x="465" y="220" font-family="system-ui" font-weight="700" font-size="16" fill="#F5F3EE">Memtable (Skip-List)</text>
+  <text x="465" y="245" font-family="monospace" font-size="12" fill="#E8FF70">In-Memory Lock-Free Read</text>
+  <line x1="465" y1="260" x2="725" y2="260" stroke="#252D3F" />
+  <text x="465" y="290" font-family="monospace" font-size="12" fill="#ffffff">Capacity: 64MB / Flushes at 90%</text>
+  <text x="465" y="320" font-family="monospace" font-size="12" fill="#888">Throughput: 85,000 ops/sec</text>
+
+  <!-- Arrow -->
+  <line x1="750" y1="290" x2="820" y2="290" stroke="#E8FF70" stroke-width="3" />
+  <polygon points="820,290 810,283 810,297" fill="#E8FF70" />
+
+  <!-- Box 3: SSTables -->
+  <rect x="830" y="180" width="280" height="220" rx="8" fill="#161B26" stroke="#252D3F" />
+  <text x="855" y="220" font-family="system-ui" font-weight="700" font-size="16" fill="#F5F3EE">SSTable L0 &amp; L1</text>
+  <text x="855" y="245" font-family="monospace" font-size="12" fill="#888">Sorted String Tables on Disk</text>
+  <line x1="855" y1="260" x2="1085" y2="260" stroke="#252D3F" />
+  <text x="855" y="290" font-family="monospace" font-size="11" fill="#fff">Bloom Filter: &lt; 1.2% FP</text>
+  <text x="855" y="320" font-family="monospace" font-size="11" fill="#fff">Background Compaction: Active</text>
+
+  <!-- Metrics Bar below -->
+  <rect x="80" y="440" width="1030" height="140" rx="8" fill="#161B26" />
+  <text x="110" y="480" font-family="monospace" font-size="13" fill="#888">BENCHMARK CHARACTERISTICS (Random 1KB Payload)</text>
+  <text x="110" y="520" font-family="monospace" font-size="24" fill="#E8FF70">85,210 ops/sec <tspan font-size="14" fill="#888">| Sequential Write</tspan></text>
+  <text x="600" y="520" font-family="monospace" font-size="24" fill="#F5F3EE">12.4 MB/s <tspan font-size="14" fill="#888">| Compaction Overhead</tspan></text>
+</svg>

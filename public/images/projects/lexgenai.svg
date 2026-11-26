@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675" width="1200" height="675">
+  <rect width="1200" height="675" fill="#0E1015" />
+  <!-- Window Header -->
+  <rect width="1200" height="50" fill="#151821" />
+  <circle cx="30" cy="25" r="7" fill="#ff5f56" />
+  <circle cx="55" cy="25" r="7" fill="#ffbd2e" />
+  <circle cx="80" cy="25" r="7" fill="#27c93f" />
+  <text x="600" y="32" font-family="monospace" font-size="14" fill="#888" text-anchor="middle">lexgen-ai // Statutory RAG &amp; Legal Audit Engine</text>
+
+  <!-- Left Sidebar -->
+  <rect x="25" y="75" width="280" height="575" rx="8" fill="#141722" stroke="#222634" />
+  <text x="45" y="115" font-family="system-ui" font-weight="700" font-size="16" fill="#F5F3EE">Doc Corpus</text>
+  <rect x="45" y="135" width="240" height="40" rx="6" fill="#1d2130" stroke="#E8FF70" stroke-width="1" />
+  <text x="60" y="160" font-family="monospace" font-size="13" fill="#E8FF70">Active: Supreme_Court_2024.pdf</text>
+  <rect x="45" y="190" width="240" height="36" rx="6" fill="#181b26" />
+  <text x="60" y="213" font-family="monospace" font-size="12" fill="#777">Commercial_Code_Title_11.pdf</text>
+  <rect x="45" y="235" width="240" height="36" rx="6" fill="#181b26" />
+  <text x="60" y="258" font-family="monospace" font-size="12" fill="#777">Compliance_Audit_v2.json</text>
+
+  <!-- Stat Badges in Sidebar -->
+  <rect x="45" y="480" width="240" height="60" rx="6" fill="#10131a" />
+  <text x="60" y="505" font-family="monospace" font-size="11" fill="#888">CITATION VERIFICATION</text>
+  <text x="60" y="528" font-family="system-ui" font-weight="700" font-size="18" fill="#E8FF70">98.4% DETERMINISTIC</text>
+
+  <!-- Center Content Area -->
+  <rect x="330" y="75" width="540" height="575" rx="8" fill="#141722" stroke="#222634" />
+  <text x="360" y="115" font-family="system-ui" font-weight="700" font-size="18" fill="#F5F3EE">Contract Clause Audit &amp; Synthesis</text>
+  <line x1="360" y1="135" x2="840" y2="135" stroke="#222634" />
+  <rect x="360" y="155" width="480" height="120" rx="6" fill="#181b26" stroke="#2c3144" />
+  <text x="380" y="185" font-family="monospace" font-size="13" fill="#E8FF70"># Clause 4.2: Indemnification &amp; Liability Threshold</text>
+  <text x="380" y="210" font-family="monospace" font-size="12" fill="#aaa">Status: [AUDITED] · 0 Ambiguities Found</text>
+  <text x="380" y="235" font-family="monospace" font-size="12" fill="#888">Verified against 14 federal precedent precedents.</text>
+
+  <rect x="360" y="295" width="480" height="180" rx="6" fill="#181b26" stroke="#2c3144" />
+  <text x="380" y="325" font-family="monospace" font-size="13" fill="#F5F3EE">Semantic Cross-Reference Graph</text>
+  <!-- Mini Node Graph -->
+  <circle cx="430" cy="400" r="22" fill="#1d2130" stroke="#E8FF70" stroke-width="2" />
+  <text x="430" y="405" font-family="monospace" font-size="10" fill="#E8FF70" text-anchor="middle">S-42</text>
+  <circle cx="560" cy="370" r="26" fill="#1d2130" stroke="#ffffff" stroke-width="2" />
+  <text x="560" y="375" font-family="monospace" font-size="10" fill="#ffffff" text-anchor="middle">PREC</text>
+  <circle cx="700" cy="410" r="22" fill="#1d2130" stroke="#E8FF70" stroke-width="2" />
+  <text x="700" y="415" font-family="monospace" font-size="10" fill="#E8FF70" text-anchor="middle">RAG</text>
+  <line x1="452" y1="395" x2="534" y2="375" stroke="#E8FF70" stroke-width="2" stroke-dasharray="3 3" />
+  <line x1="586" y1="375" x2="678" y2="405" stroke="#ffffff" stroke-width="2" />
+
+  <!-- Right Inspector -->
+  <rect x="895" y="75" width="280" height="575" rx="8" fill="#141722" stroke="#222634" />
+  <text x="915" y="115" font-family="system-ui" font-weight="700" font-size="16" fill="#F5F3EE">Latency Monitor</text>
+  <text x="915" y="145" font-family="monospace" font-size="28" fill="#E8FF70">720ms</text>
+  <text x="915" y="170" font-family="monospace" font-size="12" fill="#888">p99 Hybrid Search</text>
+  <rect x="915" y="200" width="240" height="6" rx="3" fill="#222634" />
+  <rect x="915" y="200" width="190" height="6" rx="3" fill="#E8FF70" />
+</svg>

@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675" width="1200" height="675">
+  <rect width="1200" height="675" fill="#0C0D12" />
+  <rect width="1200" height="50" fill="#151722" />
+  <circle cx="30" cy="25" r="7" fill="#ff5f56" />
+  <circle cx="55" cy="25" r="7" fill="#ffbd2e" />
+  <circle cx="80" cy="25" r="7" fill="#27c93f" />
+  <text x="600" y="32" font-family="monospace" font-size="14" fill="#888" text-anchor="middle">ai-video-gen // Programmatic Kinetic Video Engine</text>
+
+  <!-- Video Viewport -->
+  <rect x="40" y="80" width="700" height="390" rx="8" fill="#151722" stroke="#25293d" />
+  <rect x="60" y="100" width="660" height="350" rx="6" fill="#07080b" />
+  <circle cx="390" cy="275" r="60" fill="none" stroke="#E8FF70" stroke-width="2" stroke-dasharray="8 6" />
+  <polygon points="380,250 410,275 380,300" fill="#E8FF70" />
+  <text x="390" y="380" font-family="system-ui" font-weight="800" font-size="28" fill="#ffffff" text-anchor="middle">KINETIC TYPOGRAPHY SYNTHESIS</text>
+
+  <!-- Side Inspector (Audio & Scene Graph) -->
+  <rect x="765" y="80" width="395" height="390" rx="8" fill="#151722" stroke="#25293d" />
+  <text x="790" y="120" font-family="system-ui" font-weight="700" font-size="16" fill="#F5F3EE">Scene Director</text>
+  <rect x="790" y="145" width="345" height="65" rx="6" fill="#1d202f" stroke="#E8FF70" stroke-width="1" />
+  <text x="810" y="172" font-family="monospace" font-size="12" fill="#E8FF70">Scene 1: Introduction (00:00 - 00:04)</text>
+  <text x="810" y="195" font-family="monospace" font-size="11" fill="#888">Script: "Autonomous AI is transforming..."</text>
+
+  <rect x="790" y="225" width="345" height="65" rx="6" fill="#181a26" />
+  <text x="810" y="252" font-family="monospace" font-size="12" fill="#aaa">Scene 2: Core Architecture (00:04 - 00:11)</text>
+  <text x="810" y="275" font-family="monospace" font-size="11" fill="#666">Script: "By decoupling retrieval from..."</text>
+
+  <!-- Bottom Timeline Track Area -->
+  <rect x="40" y="490" width="1120" height="155" rx="8" fill="#151722" stroke="#25293d" />
+  <text x="70" y="525" font-family="monospace" font-size="12" fill="#999">TIMELINE TRACKS · 60 FPS</text>
+  <!-- Track 1: Video -->
+  <rect x="70" y="540" width="1060" height="35" rx="4" fill="#1f2334" />
+  <rect x="70" y="540" width="340" height="35" rx="4" fill="#323854" stroke="#E8FF70" stroke-width="1" />
+  <text x="85" y="562" font-family="monospace" font-size="11" fill="#E8FF70">CLIP 01 [Diffusion]</text>
+  <rect x="420" y="540" width="460" height="35" rx="4" fill="#282d43" />
+  <text x="435" y="562" font-family="monospace" font-size="11" fill="#fff">CLIP 02 [Motion UI]</text>
+  <!-- Track 2: Audio Waveform -->
+  <rect x="70" y="585" width="1060" height="40" rx="4" fill="#12141c" />
+  <path d="M70 605 L150 595 L180 615 L240 590 L300 620 L380 595 L460 610 L540 590 L680 615 L800 595 L950 610 L1130 605" fill="none" stroke="#E8FF70" stroke-width="2" />
+</svg>

@@ -1,0 +1,14 @@
+{
+  "app\\page.tsx -> @/components/CommandPalette": {
+    "id": 1971,
+    "files": [
+      "static/chunks/548.34dff7a2de290044.js"
+    ]
+  },
+  "components\\Contact.tsx -> canvas-confetti": {
+    "id": 9235,
+    "files": [
+      "static/chunks/235.ec7c8dde809488be.js"
+    ]
+  }
+}
