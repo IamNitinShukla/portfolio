@@ -477,6 +477,7 @@ export default function MascotAssistantDialog({
             onToggleMute={voiceAssistant.toggleMute}
             onExit={voiceAssistant.stopVoiceMode}
             onRetry={voiceAssistant.retryListening}
+            audioLevel={voiceAssistant.audioLevel}
           />
         )}
 

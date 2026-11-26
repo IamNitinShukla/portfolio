@@ -13,6 +13,7 @@ interface VoiceAssistantOverlayProps {
   onToggleMute: () => void;
   onExit: () => void;
   onRetry?: () => void;
+  audioLevel?: number;
 }
 
 /**
@@ -45,6 +46,7 @@ export default function VoiceAssistantOverlay({
   onToggleMute,
   onExit,
   onRetry,
+  audioLevel,
 }: VoiceAssistantOverlayProps) {
   const isUserSpeaking = voiceState === "recording";
   // Determine primary state headline
