@@ -157,19 +157,13 @@ export default function Hero({ onOpenContact }: HeroProps = {}) {
       id="hero"
       className="relative flex flex-col justify-center pt-[110px] pb-12 sm:pt-28 sm:pb-14 lg:pt-36 lg:pb-20 border-b border-border overflow-hidden transition-colors"
     >
-      {/* 1. Base Dot Grid: Always visible, subtle depth across the entire background even when stationary */}
-      <div
-        className="pointer-events-none absolute inset-0 bg-dot-grid opacity-100 z-0"
-        aria-hidden="true"
-      />
-
-      {/* 2. Interactive Spotlight Layer: Desktop cursor tracking & Mobile right-side ambient spotlight */}
+      {/* Interactive Cursor Spotlight Layer: Dots appear strictly inside the cursor spotlight on desktop, and stationary right-side spotlight on mobile */}
       <div
         ref={spotlightMaskRef}
         className="pointer-events-none absolute inset-0 z-0 transition-opacity duration-500 opacity-0"
         aria-hidden="true"
       >
-        {/* Brighter dots revealed by the spotlight mask */}
+        {/* Dots revealed strictly by the spotlight mask */}
         <div className="absolute inset-0 bg-dot-grid-bright" />
         {/* Soft, diffuse ambient radial illumination that smoothly accompanies the spotlight */}
         <div className="absolute inset-0 bg-accent/[0.04] dark:bg-accent/[0.045]" />
