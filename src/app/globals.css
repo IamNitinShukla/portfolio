@@ -7,7 +7,63 @@
 
 :root {
   /* =========================================================================
-     LIGHT THEME (DEFAULT) — CLOUD + DIGITAL VIOLET
+     DARK THEME (DEFAULT) — CHARCOAL / NEAR-BLACK + LIME ACCENT
+     Background: #101110
+     Surface: #191B19
+     Secondary surface: #222522
+     Primary text: #F5F5F0
+     Secondary text: #A4A49C
+     Accent: #E8FF70
+     Accent hover: #D8EF62
+     Border: #30332F
+     ========================================================================= */
+  --background: #101110;
+  --surface: #191B19;
+  --surface-secondary: #222522;
+  --surface-card: #191B19;
+  --surface-elevated: #222522;
+  --surface-tertiary: #282C28;
+  --primary-text: #F5F5F0;
+  --secondary-text: #A4A49C;
+  --muted-text: #70736E;
+  --accent: #E8FF70;
+  --accent-hover: #D8EF62;
+  --accent-dim: rgba(232, 255, 112, 0.12);
+  --accent-glow: rgba(232, 255, 112, 0.35);
+  --border: #30332F;
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-strong: rgba(255, 255, 255, 0.16);
+  --dot-color: rgba(255, 255, 255, 0.06);
+  --card-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.85);
+  --ambient-blur: rgba(232, 255, 112, 0.04);
+}
+
+.dark {
+  /* Explicit dark mode class matches default dark root */
+  --background: #101110;
+  --surface: #191B19;
+  --surface-secondary: #222522;
+  --surface-card: #191B19;
+  --surface-elevated: #222522;
+  --surface-tertiary: #282C28;
+  --primary-text: #F5F5F0;
+  --secondary-text: #A4A49C;
+  --muted-text: #70736E;
+  --accent: #E8FF70;
+  --accent-hover: #D8EF62;
+  --accent-dim: rgba(232, 255, 112, 0.12);
+  --accent-glow: rgba(232, 255, 112, 0.35);
+  --border: #30332F;
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-strong: rgba(255, 255, 255, 0.16);
+  --dot-color: rgba(255, 255, 255, 0.06);
+  --card-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.85);
+  --ambient-blur: rgba(232, 255, 112, 0.04);
+}
+
+html:not(.dark) {
+  /* =========================================================================
+     LIGHT THEME (WHEN EXPLICITLY SWITCHED) — CLOUD + DIGITAL VIOLET
      Background: #F0F3FA
      Primary surface: #FFFFFF
      Secondary surface: #E5E8F4
@@ -37,39 +93,6 @@
   --dot-color: rgba(102, 87, 217, 0.08);
   --card-shadow: 0 10px 30px -10px rgba(23, 25, 35, 0.06), 0 4px 14px -2px rgba(102, 87, 217, 0.04);
   --ambient-blur: rgba(102, 87, 217, 0.05);
-}
-
-.dark {
-  /* =========================================================================
-     DARK THEME
-     Background: #101110
-     Surface: #191B19
-     Secondary surface: #222522
-     Primary text: #F5F5F0
-     Secondary text: #A4A49C
-     Accent: #E8FF70
-     Accent hover: #D8EF62
-     Border: #30332F
-     ========================================================================= */
-  --background: #101110;
-  --surface: #191B19;
-  --surface-secondary: #222522;
-  --surface-card: #191B19;
-  --surface-elevated: #222522;
-  --surface-tertiary: #282C28;
-  --primary-text: #F5F5F0;
-  --secondary-text: #A4A49C;
-  --muted-text: #70736E;
-  --accent: #E8FF70;
-  --accent-hover: #D8EF62;
-  --accent-dim: rgba(232, 255, 112, 0.12);
-  --accent-glow: rgba(232, 255, 112, 0.35);
-  --border: #30332F;
-  --border-subtle: rgba(255, 255, 255, 0.06);
-  --border-strong: rgba(255, 255, 255, 0.16);
-  --dot-color: rgba(255, 255, 255, 0.06);
-  --card-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.85);
-  --ambient-blur: rgba(232, 255, 112, 0.04);
 }
 
 html {

@@ -23,7 +23,19 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setThemeState(document.documentElement.classList.contains("dark") ? "dark" : "light");
+    try {
+      const saved = localStorage.getItem("portfolio-theme");
+      if (saved === "light") {
+        setThemeState("light");
+        document.documentElement.classList.remove("dark");
+      } else {
+        setThemeState("dark");
+        document.documentElement.classList.add("dark");
+      }
+    } catch {
+      setThemeState("dark");
+      document.documentElement.classList.add("dark");
+    }
     setMounted(true);
   }, []);
 

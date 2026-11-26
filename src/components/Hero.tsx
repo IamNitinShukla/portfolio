@@ -8,7 +8,11 @@ import CardSurfaceRgbDots from "@/components/CardSurfaceRgbDots";
 import IdBarcode from "@/components/IdBarcode";
 import ProfileCardMedia from "@/components/ProfileCardMedia";
 
-export default function Hero() {
+interface HeroProps {
+  onOpenContact?: () => void;
+}
+
+export default function Hero({ onOpenContact }: HeroProps = {}) {
   const [timeString, setTimeString] = useState<string>("07:30 PM");
   const [cardMode, setCardMode] = useState<"id" | "upi">("id");
   const [isTransforming, setIsTransforming] = useState<boolean>(false);
@@ -64,26 +68,28 @@ export default function Hero() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 sm:gap-10 lg:gap-8 items-center">
           
           {/* Left Column: Headline & Intro */}
-          <div className="lg:col-span-7 flex flex-col items-start text-left">
+          <div className="lg:col-span-7 flex flex-col items-start text-left w-full">
             
             {/* Professional Editorial Descriptor (Clean typography, no pill, no border, no dot) */}
-            <p className="animate-fade-in-up font-mono text-[11px] sm:text-xs md:text-sm font-semibold tracking-[0.14em] sm:tracking-[0.18em] uppercase text-primary-muted mb-[28px] sm:mb-5 lg:mb-6">
+            <p className="animate-fade-in-up font-mono text-[11px] sm:text-xs md:text-sm font-semibold tracking-[0.14em] sm:tracking-[0.18em] uppercase text-primary-muted mb-5 sm:mb-5 lg:mb-6">
               {portfolioData.personal.role}
             </p>
 
-            {/* Editorial Main Headline (Responsive fluid scale, natural mobile wrap, zero clipping, no underlines) */}
-            <h1 className="animate-fade-in-up delay-100 text-[1.95rem] sm:text-5xl md:text-6xl lg:text-[5.2rem] font-extrabold tracking-[-0.035em] sm:tracking-[-0.04em] text-primary leading-[1.15] sm:leading-[1.04] lg:leading-[0.98] mb-[48px] sm:mb-8 lg:mb-10 text-balance">
-              {portfolioData.personal.headlineLead} <br className="hidden sm:inline" />
+            {/* Editorial Main Headline (Responsive fluid scale, natural mobile wrap, zero clipping, no forced breaks on mobile) */}
+            <h1 className="animate-fade-in-up delay-100 text-[clamp(1.85rem,7.5vw,2.45rem)] sm:text-5xl md:text-6xl lg:text-[5.2rem] font-extrabold tracking-tight sm:tracking-[-0.04em] text-primary leading-[1.12] sm:leading-[1.04] lg:leading-[0.98] mb-7 sm:mb-8 lg:mb-10 w-full break-words">
+              {portfolioData.personal.headlineLead}{" "}
+              <br className="hidden sm:inline" />
               <span className="text-accent">
                 {portfolioData.personal.headlineAccent}
-              </span> <br className="hidden sm:inline" />
-              <span className="whitespace-nowrap sm:whitespace-normal">
+              </span>{" "}
+              <br className="hidden sm:inline" />
+              <span>
                 {portfolioData.personal.headlineEnd}
               </span>
             </h1>
 
             {/* CTA Buttons & Social Links Row */}
-            <div className="animate-fade-in-up delay-200 flex flex-col sm:flex-row items-stretch sm:items-center gap-[24px] sm:gap-3.5 w-full sm:w-auto">
+            <div className="animate-fade-in-up delay-200 flex flex-col sm:flex-row items-stretch sm:items-center gap-5 sm:gap-3.5 w-full sm:w-auto">
               
               {/* Responsive Side-by-Side CTAs */}
               <div className="grid grid-cols-2 sm:flex sm:items-center gap-2.5 sm:gap-3.5 w-full sm:w-auto">
@@ -97,14 +103,22 @@ export default function Hero() {
                   <ArrowUpRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
                 </a>
 
-                {/* Secondary CTA */}
-                <a
-                  href="#contact"
-                  onClick={(e) => handleScrollTo(e, "#contact")}
-                  className="inline-flex items-center justify-center gap-1.5 px-4 sm:px-7 py-2.5 sm:py-3.5 rounded-full bg-surface hover:bg-surface-elevated border border-border hover:border-accent text-primary font-semibold text-[11px] sm:text-xs tracking-wider uppercase transition-all duration-200 shadow-sm whitespace-nowrap text-center"
+                {/* Secondary CTA: Say Hello (Opens Contact Modal) */}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    if (onOpenContact) {
+                      onOpenContact();
+                    } else if (typeof window !== "undefined") {
+                      window.dispatchEvent(new CustomEvent("open-contact-modal"));
+                    }
+                  }}
+                  className="inline-flex items-center justify-center gap-1.5 px-4 sm:px-7 py-2.5 sm:py-3.5 rounded-full bg-surface hover:bg-surface-elevated border border-border hover:border-accent text-primary font-semibold text-[11px] sm:text-xs tracking-wider uppercase transition-all duration-200 shadow-sm whitespace-nowrap text-center cursor-pointer"
+                  aria-label="Open contact modal to say hello"
                 >
                   <span>Say Hello</span>
-                </a>
+                </button>
               </div>
 
               {/* Social Icon Links (Compact 40px touch-friendly circles) */}

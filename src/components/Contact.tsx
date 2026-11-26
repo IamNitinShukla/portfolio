@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowUpRight,
@@ -21,8 +21,20 @@ import { portfolioData, socialLinks } from "@/data/portfolioData";
 
 type ModalStep = "details" | "otp" | "success";
 
-export default function Contact() {
-  const [isModalOpen, setIsModalOpen] = useState(false);
+interface ContactProps {
+  isOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
+}
+
+export default function Contact({ isOpen, onOpenChange }: ContactProps = {}) {
+  const [internalModalOpen, setInternalModalOpen] = useState(false);
+  const isModalOpen = isOpen !== undefined ? isOpen : internalModalOpen;
+
+  const setIsModalOpen = useCallback((open: boolean) => {
+    setInternalModalOpen(open);
+    onOpenChange?.(open);
+  }, [onOpenChange]);
+
   const [copied, setCopied] = useState(false);
   const [step, setStep] = useState<ModalStep>("details");
   const [isLoading, setIsLoading] = useState(false);
@@ -63,7 +75,16 @@ export default function Contact() {
         window.removeEventListener("keydown", handleKeyDown);
       };
     }
-  }, [isModalOpen]);
+  }, [isModalOpen, setIsModalOpen]);
+
+  // Listen for global open-contact-modal events
+  useEffect(() => {
+    const handleOpen = () => {
+      setIsModalOpen(true);
+    };
+    window.addEventListener("open-contact-modal", handleOpen);
+    return () => window.removeEventListener("open-contact-modal", handleOpen);
+  }, [setIsModalOpen]);
 
   // Resend countdown timer
   useEffect(() => {
@@ -525,6 +546,7 @@ export default function Contact() {
                     </label>
                     <input
                       id="modal-name"
+                      name="name"
                       type="text"
                       required
                       disabled={isLoading}
@@ -552,6 +574,7 @@ export default function Contact() {
                     </label>
                     <input
                       id="modal-email"
+                      name="email"
                       type="email"
                       required
                       disabled={isLoading}
@@ -579,6 +602,7 @@ export default function Contact() {
                     </label>
                     <textarea
                       id="modal-message"
+                      name="message"
                       rows={4}
                       required
                       disabled={isLoading}

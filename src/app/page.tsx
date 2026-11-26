@@ -25,6 +25,7 @@ const CommandPalette = dynamic(() => import("@/components/CommandPalette"), {
 
 export default function Home() {
   const [terminalOpen, setTerminalOpen] = useState(false);
+  const [contactModalOpen, setContactModalOpen] = useState(false);
   const [showIntro, setShowIntro] = useState(true);
 
   // Check if intro has already been seen in this session or if user prefers reduced motion
@@ -71,10 +72,13 @@ export default function Home() {
 
       <main className="relative min-h-screen bg-transparent text-primary flex flex-col z-10 transition-colors duration-200">
         {/* Intelligently positioned sticky floating navigation */}
-        <Navigation onOpenTerminal={() => setTerminalOpen(true)} />
+        <Navigation
+          onOpenTerminal={() => setTerminalOpen(true)}
+          onOpenContact={() => setContactModalOpen(true)}
+        />
 
         {/* Hero Section */}
-        <Hero />
+        <Hero onOpenContact={() => setContactModalOpen(true)} />
 
         {/* Marquee Technology Band */}
         <TechMarquee />
@@ -101,7 +105,7 @@ export default function Home() {
         <Achievements />
 
         {/* Contact, Meeting Scheduler & Direct Inquiry Form (Serves as the clean Yogender-inspired closing section) */}
-        <Contact />
+        <Contact isOpen={contactModalOpen} onOpenChange={setContactModalOpen} />
 
         {/* Interactive Command Palette / Quick Terminal Modal (⌘K) */}
         <CommandPalette isOpen={terminalOpen} onClose={() => setTerminalOpen(false)} />

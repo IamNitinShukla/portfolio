@@ -9,9 +9,10 @@ import ThemeToggle from "@/components/ThemeToggle";
 
 interface NavigationProps {
   onOpenTerminal?: () => void;
+  onOpenContact?: () => void;
 }
 
-export default function Navigation({ onOpenTerminal }: NavigationProps) {
+export default function Navigation({ onOpenTerminal, onOpenContact }: NavigationProps) {
   const [scrolled, setScrolled] = useState(false);
   const [activeSection, setActiveSection] = useState("hero");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -117,7 +118,7 @@ export default function Navigation({ onOpenTerminal }: NavigationProps) {
             transition={{ duration: 0.36, ease: [0.16, 1, 0.3, 1] }}
             href="#hero"
             onClick={(e) => handleScrollTo(e, "#hero")}
-            className="font-bold tracking-[0.14em] uppercase text-primary hover:text-accent transition-colors select-none whitespace-nowrap text-xs sm:text-sm pl-1"
+            className="font-bold tracking-[0.13em] uppercase text-primary hover:text-accent transition-colors select-none whitespace-nowrap text-[13.5px] sm:text-[15.5px] md:text-base pl-1"
           >
             NITIN SHUKLA
           </motion.a>
@@ -204,34 +205,50 @@ export default function Navigation({ onOpenTerminal }: NavigationProps) {
               )}
             </AnimatePresence>
 
-            {/* Let's Talk CTA (Visible in BOTH Top & Scrolled States on Desktop; compact pill on scroll) */}
-            <motion.a
+            {/* Let's Talk CTA (Visible in BOTH Top & Scrolled States on Desktop; opens Contact Modal) */}
+            <motion.button
+              type="button"
               layout
               transition={{ duration: 0.36, ease: [0.16, 1, 0.3, 1] }}
-              href="#contact"
-              onClick={(e) => handleScrollTo(e, "#contact")}
+              onClick={(e) => {
+                e.preventDefault();
+                if (onOpenContact) {
+                  onOpenContact();
+                } else if (typeof window !== "undefined") {
+                  window.dispatchEvent(new CustomEvent("open-contact-modal"));
+                }
+              }}
               className={cn(
-                "hidden md:inline-flex items-center gap-1.5 rounded-full bg-accent hover:bg-accent-hover text-white dark:text-[#101110] font-mono font-bold text-xs tracking-wider uppercase transition-colors shadow-md shadow-accent/20",
+                "hidden md:inline-flex items-center gap-1.5 rounded-full bg-accent hover:bg-accent-hover text-white dark:text-[#101110] font-mono font-bold text-xs tracking-wider uppercase transition-colors shadow-md shadow-accent/20 cursor-pointer",
                 scrolled
                   ? "px-4 py-1.5 text-[11px]"
                   : "px-5 py-2 text-xs"
               )}
+              aria-label="Open contact modal to start conversation"
             >
               <span>Let&apos;s Talk</span>
               <ArrowUpRight className="w-3.5 h-3.5" />
-            </motion.a>
+            </motion.button>
 
             {/* Mobile Actions */}
             <div className="flex md:hidden items-center gap-2">
               {scrolled && (
-                <a
-                  href="#contact"
-                  onClick={(e) => handleScrollTo(e, "#contact")}
-                  className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-accent hover:bg-accent-hover text-white dark:text-[#101110] font-mono font-bold text-[11px] tracking-wider uppercase shadow-sm"
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    if (onOpenContact) {
+                      onOpenContact();
+                    } else if (typeof window !== "undefined") {
+                      window.dispatchEvent(new CustomEvent("open-contact-modal"));
+                    }
+                  }}
+                  className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-accent hover:bg-accent-hover text-white dark:text-[#101110] font-mono font-bold text-[11px] tracking-wider uppercase shadow-sm cursor-pointer"
+                  aria-label="Open contact modal"
                 >
                   <span>Talk</span>
                   <ArrowUpRight className="w-3 h-3" />
-                </a>
+                </button>
               )}
 
               <button
