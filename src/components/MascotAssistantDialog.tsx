@@ -173,10 +173,12 @@ export default function MascotAssistantDialog({
   id,
   onDismiss,
   mascotVideo,
+  startInVoiceMode = false,
 }: {
   id: string;
   onDismiss: () => void;
   mascotVideo?: RefObject<HTMLVideoElement>;
+  startInVoiceMode?: boolean;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -249,6 +251,13 @@ export default function MascotAssistantDialog({
   }
 
   const voiceAssistant = useVoiceAssistant({ onSendMessage: (query, signal) => send(query, undefined, signal) });
+
+  // Auto-launch Voice Mode if requested (e.g. via double-click on mascot)
+  useEffect(() => {
+    if (startInVoiceMode && !voiceAssistant.isActive) {
+      voiceAssistant.startVoiceMode();
+    }
+  }, [startInVoiceMode, voiceAssistant]);
 
   // Reset to a clean fresh in-memory session
   function handleNewConversation() {

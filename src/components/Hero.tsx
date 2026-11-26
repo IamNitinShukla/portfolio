@@ -231,33 +231,33 @@ export default function Hero({ onOpenContact }: HeroProps = {}) {
               </div>
 
               {/* Social Icon Links (Exactly 3 transparent icons: GitHub, LinkedIn, X; Mail removed) */}
-              <div className="flex items-center justify-start gap-2 sm:gap-2.5 sm:ml-2">
+              <div className="flex items-center justify-start gap-2.5 sm:gap-2.5 sm:ml-2">
                 <a
                   href={portfolioData.personal.github}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-full bg-transparent border border-neutral-300/80 dark:border-white/15 hover:border-accent dark:hover:border-accent text-neutral-500 dark:text-[#888888] hover:text-accent dark:hover:text-accent hover:scale-105 active:scale-95 transition-all duration-200 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent cursor-pointer"
+                  className="w-[42px] h-[42px] sm:w-10 sm:h-10 flex items-center justify-center rounded-full bg-transparent border border-neutral-300/80 dark:border-white/15 hover:border-accent dark:hover:border-accent text-neutral-500 dark:text-[#888888] hover:text-accent dark:hover:text-accent hover:scale-105 active:scale-95 transition-all duration-200 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent cursor-pointer"
                   aria-label="GitHub Profile"
                 >
-                  <Github className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  <Github className="w-[18px] h-[18px] sm:w-4 sm:h-4" />
                 </a>
                 <a
                   href={portfolioData.personal.linkedin}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-full bg-transparent border border-neutral-300/80 dark:border-white/15 hover:border-accent dark:hover:border-accent text-neutral-500 dark:text-[#888888] hover:text-accent dark:hover:text-accent hover:scale-105 active:scale-95 transition-all duration-200 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent cursor-pointer"
+                  className="w-[42px] h-[42px] sm:w-10 sm:h-10 flex items-center justify-center rounded-full bg-transparent border border-neutral-300/80 dark:border-white/15 hover:border-accent dark:hover:border-accent text-neutral-500 dark:text-[#888888] hover:text-accent dark:hover:text-accent hover:scale-105 active:scale-95 transition-all duration-200 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent cursor-pointer"
                   aria-label="LinkedIn Profile"
                 >
-                  <Linkedin className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  <Linkedin className="w-[18px] h-[18px] sm:w-4 sm:h-4" />
                 </a>
                 <a
                   href={portfolioData.personal.twitter}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-full bg-transparent border border-neutral-300/80 dark:border-white/15 hover:border-accent dark:hover:border-accent text-neutral-500 dark:text-[#888888] hover:text-accent dark:hover:text-accent hover:scale-105 active:scale-95 transition-all duration-200 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent cursor-pointer"
+                  className="w-[42px] h-[42px] sm:w-10 sm:h-10 flex items-center justify-center rounded-full bg-transparent border border-neutral-300/80 dark:border-white/15 hover:border-accent dark:hover:border-accent text-neutral-500 dark:text-[#888888] hover:text-accent dark:hover:text-accent hover:scale-105 active:scale-95 transition-all duration-200 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent cursor-pointer"
                   aria-label="X Profile"
                 >
-                  <Twitter className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  <Twitter className="w-[18px] h-[18px] sm:w-4 sm:h-4" />
                 </a>
               </div>
 
@@ -267,13 +267,19 @@ export default function Hero({ onOpenContact }: HeroProps = {}) {
 
           {/* Right Column: Digital Developer ID Badge Card / Titanium Device */}
           <div className="lg:col-span-5 flex justify-center lg:justify-end mt-3 sm:mt-10 lg:mt-0 w-full">
-            <div className="animate-fade-in-up delay-200 relative w-full max-w-full sm:max-w-[390px] rounded-[28px] sm:rounded-[32px] bg-surface border border-border p-4 sm:p-5 shadow-xl hover:border-accent/40 transition-all duration-300 group">
-              
-              {/* Subtle RGB Digital Surface Dots (Restricted strictly to outer card surface; NEVER over photograph) */}
-              <CardSurfaceRgbDots isUpiMode={cardMode === "upi"} isTransforming={isTransforming} />
+            <div className="animate-fade-in-up delay-200 relative w-full max-w-full sm:max-w-[390px] group">
+              {/* Extremely subtle ambient lighting spread around the card edges */}
+              <div
+                className="pointer-events-none absolute -inset-1 sm:-inset-1.5 rounded-[34px] sm:rounded-[38px] bg-accent/[0.045] dark:bg-accent/[0.04] blur-2xl opacity-75 group-hover:opacity-100 transition-opacity duration-700 -z-10"
+                aria-hidden="true"
+              />
 
-              {/* Card Foreground Content Layer */}
-              <div className="relative z-10 flex flex-col">
+              <div className="relative w-full rounded-[28px] sm:rounded-[32px] bg-surface border border-border p-4 sm:p-5 shadow-xl hover:border-accent/40 transition-all duration-300">
+                {/* Subtle RGB Digital Surface Dots (Restricted strictly to outer card surface; NEVER over photograph) */}
+                <CardSurfaceRgbDots isUpiMode={cardMode === "upi"} isTransforming={isTransforming} />
+
+                {/* Card Foreground Content Layer */}
+                <div className="relative z-10 flex flex-col">
                 {/* Speaker notch at top */}
                 <div className="h-1 w-10 bg-border rounded-full mx-auto mb-3 sm:mb-3.5" />
 
@@ -372,6 +378,7 @@ export default function Hero({ onOpenContact }: HeroProps = {}) {
                 </div>
               </div>
 
+              </div>
             </div>
           </div>
 

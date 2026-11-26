@@ -16,21 +16,29 @@ export default function RainbowPhotoGallery({
   const [focusedIndex, setFocusedIndex] = useState(0);
   const [isFanned, setIsFanned] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [dragOffset, setDragOffset] = useState(0);
+  const [slideDirection, setSlideDirection] = useState<"left" | "right" | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const leaveTimer = useRef<NodeJS.Timeout | null>(null);
+  const prevActiveIndexRef = useRef(0);
   const prefersReduced = useReducedMotion();
 
-  // Pointer / Touch tracking references
+  // Desktop Pointer tracking references
   const isPointerDown = useRef(false);
   const wasAlreadyFannedOnDown = useRef(false);
-  const startX = useRef(0);
-  const startY = useRef(0);
+  const pointerStartX = useRef(0);
+  const pointerStartY = useRef(0);
   const hasDragged = useRef(false);
+
+  // Mobile Touch swipe tracking references
+  const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
+  const isSwipingRef = useRef(false);
+  const isVerticalScrollRef = useRef(false);
 
   const total = images.length;
 
-  // Responsive mobile check for calibrated arc translation values
+  // Responsive mobile check
   useEffect(() => {
     const checkMobile = () => {
       setIsMobile(typeof window !== "undefined" && window.innerWidth < 640);
@@ -40,7 +48,7 @@ export default function RainbowPhotoGallery({
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
-  // Preload all 4 genuine photographs on mount for zero-latency instant transitions
+  // Preload all genuine photographs on mount for zero-latency instant transitions
   useEffect(() => {
     if (typeof window === "undefined" || !images.length) return;
     images.forEach((img) => {
@@ -58,9 +66,11 @@ export default function RainbowPhotoGallery({
     };
   }, []);
 
-  // Sync focusedIndex when activeIndex changes or gallery opens
+  // Sync focusedIndex when activeIndex changes or gallery opens (desktop)
   const openFan = useCallback(
     (targetIndex?: number) => {
+      const mobile = typeof window !== "undefined" ? window.innerWidth < 640 : isMobile;
+      if (mobile) return;
       if (leaveTimer.current) {
         clearTimeout(leaveTimer.current);
         leaveTimer.current = null;
@@ -68,7 +78,7 @@ export default function RainbowPhotoGallery({
       setIsFanned(true);
       setFocusedIndex(targetIndex !== undefined ? targetIndex : activeIndex);
     },
-    [activeIndex]
+    [activeIndex, isMobile]
   );
 
   const closeFan = useCallback(() => {
@@ -82,21 +92,31 @@ export default function RainbowPhotoGallery({
   }, [activeIndex]);
 
   // Handle slide selection & commitment
-  const commitPhoto = useCallback((index: number) => {
+  const commitPhoto = useCallback((index: number, direction?: "left" | "right") => {
+    prevActiveIndexRef.current = activeIndex;
+    if (direction) {
+      setSlideDirection(direction);
+    }
     setActiveIndex(index);
     setFocusedIndex(index);
-  }, []);
+  }, [activeIndex]);
 
   // Mouse hover event handlers for desktop
   const handleMouseEnter = () => {
-    openFan();
+    const mobile = typeof window !== "undefined" ? window.innerWidth < 640 : isMobile;
+    if (!mobile) {
+      openFan();
+    }
   };
 
   const handleMouseLeave = () => {
-    closeFan();
+    const mobile = typeof window !== "undefined" ? window.innerWidth < 640 : isMobile;
+    if (!mobile) {
+      closeFan();
+    }
   };
 
-  // Close fan if user taps outside on touch screens
+  // Close fan if user clicks outside on desktop
   useEffect(() => {
     const handleOutsideClick = (e: MouseEvent | TouchEvent) => {
       if (
@@ -120,22 +140,21 @@ export default function RainbowPhotoGallery({
     if (e.key === "ArrowLeft") {
       e.preventDefault();
       const prev = (activeIndex - 1 + total) % total;
-      commitPhoto(prev);
+      commitPhoto(prev, "right");
     } else if (e.key === "ArrowRight") {
       e.preventDefault();
       const next = (activeIndex + 1) % total;
-      commitPhoto(next);
-    } else if (e.key === "Enter" || e.key === " ") {
+      commitPhoto(next, "left");
+    } else if ((e.key === "Enter" || e.key === " ") && !isMobile) {
       e.preventDefault();
       setIsFanned((prev) => !prev);
     }
   };
 
-  // Helper to resolve which photograph index corresponds to a touch/drag point
+  // Helper to resolve which photograph index corresponds to a touch/drag point on desktop
   const resolveIndexAtPoint = (clientX: number, clientY: number): number | null => {
     if (typeof document === "undefined") return null;
 
-    // 1. First probe via elementFromPoint
     const target = document.elementFromPoint(clientX, clientY);
     if (target) {
       const cardEl = target.closest("[data-photo-index]");
@@ -147,13 +166,9 @@ export default function RainbowPhotoGallery({
       }
     }
 
-    // 2. Fallback: Horizontal band mapping relative to gallery container
     if (containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect();
       const relX = (clientX - rect.left) / rect.width;
-
-      // Ordered visual slots from left to right relative to current focusedIndex:
-      // slotFarLeft (diff=2) -> slotNearLeft (diff=3) -> slotCenter (diff=0) -> slotRight (diff=1)
       const slotFarLeft = (focusedIndex + 2) % total;
       const slotNearLeft = (focusedIndex + 3) % total;
       const slotCenter = focusedIndex;
@@ -168,53 +183,46 @@ export default function RainbowPhotoGallery({
     return null;
   };
 
-  // Pointer event handlers (Handles both mouse and touch gestures seamlessly)
+  // Pointer event handlers for desktop mouse interaction
   const handlePointerDown = (e: React.PointerEvent) => {
+    if (isMobile || e.pointerType === "touch") return;
     isPointerDown.current = true;
-    startX.current = e.clientX;
-    startY.current = e.clientY;
+    pointerStartX.current = e.clientX;
+    pointerStartY.current = e.clientY;
     hasDragged.current = false;
     wasAlreadyFannedOnDown.current = isFanned;
 
-    // On touch or click, if fan is not yet open, open it immediately
     if (!isFanned) {
       openFan();
     }
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
-    if (isPointerDown.current) {
-      const dx = e.clientX - startX.current;
-      const dy = e.clientY - startY.current;
+    if (isMobile || e.pointerType === "touch" || !isPointerDown.current) return;
+    const dx = e.clientX - pointerStartX.current;
+    const dy = e.clientY - pointerStartY.current;
 
-      // Detect intentional horizontal drag
-      if (Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy) * 0.8) {
-        hasDragged.current = true;
-        const candidate = resolveIndexAtPoint(e.clientX, e.clientY);
-        if (candidate !== null && candidate !== focusedIndex) {
-          setFocusedIndex(candidate);
-        }
+    if (Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy) * 0.8) {
+      hasDragged.current = true;
+      const candidate = resolveIndexAtPoint(e.clientX, e.clientY);
+      if (candidate !== null && candidate !== focusedIndex) {
+        setFocusedIndex(candidate);
       }
     }
   };
 
   const handlePointerUp = (e: React.PointerEvent) => {
-    if (!isPointerDown.current) return;
+    if (isMobile || e.pointerType === "touch" || !isPointerDown.current) return;
     isPointerDown.current = false;
 
     if (hasDragged.current) {
-      // Drag completed: commit focused photo as the selected active photo
       commitPhoto(focusedIndex);
-    } else {
-      // Tap without drag:
-      if (wasAlreadyFannedOnDown.current) {
-        // If already fanned, tapping toggles or commits selection
-        const candidate = resolveIndexAtPoint(e.clientX, e.clientY);
-        if (candidate !== null) {
-          commitPhoto(candidate);
-        }
-        setIsFanned(false);
+    } else if (wasAlreadyFannedOnDown.current) {
+      const candidate = resolveIndexAtPoint(e.clientX, e.clientY);
+      if (candidate !== null) {
+        commitPhoto(candidate);
       }
+      setIsFanned(false);
     }
     hasDragged.current = false;
   };
@@ -224,8 +232,154 @@ export default function RainbowPhotoGallery({
     hasDragged.current = false;
   };
 
-  // Calculate fan slot transformation for each photograph
-  // Mathematical arc ensures center is dominant and side photographs do NOT droop downward
+  // Mobile Touch Swipe Handlers (Only active for mobile/touch)
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length !== 1) return;
+    const touch = e.touches[0];
+    touchStartRef.current = {
+      x: touch.clientX,
+      y: touch.clientY,
+      time: Date.now(),
+    };
+    isSwipingRef.current = false;
+    isVerticalScrollRef.current = false;
+    setDragOffset(0);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!touchStartRef.current || isVerticalScrollRef.current) return;
+    const touch = e.touches[0];
+    const dx = touch.clientX - touchStartRef.current.x;
+    const dy = touch.clientY - touchStartRef.current.y;
+
+    // Detect direction intent
+    if (!isSwipingRef.current) {
+      // If vertical movement dominates, allow native page scroll completely unhindered
+      if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 8) {
+        isVerticalScrollRef.current = true;
+        return;
+      }
+      // If horizontal movement dominates, engage horizontal swipe
+      if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 10) {
+        isSwipingRef.current = true;
+      }
+    }
+
+    if (isSwipingRef.current) {
+      // Responsive live finger dragging with subtle resistance
+      setDragOffset(dx);
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (!touchStartRef.current) return;
+    const start = touchStartRef.current;
+    touchStartRef.current = null;
+
+    if (isVerticalScrollRef.current) {
+      isVerticalScrollRef.current = false;
+      setDragOffset(0);
+      return;
+    }
+
+    if (isSwipingRef.current) {
+      const touch = e.changedTouches[0];
+      const dx = touch ? touch.clientX - start.x : dragOffset;
+      const dy = touch ? touch.clientY - start.y : 0;
+      const duration = Date.now() - start.time;
+      const isQuickFlick = duration < 320 && Math.abs(dx) > 28;
+      const isDragSwipe = Math.abs(dx) >= 44;
+
+      if ((isQuickFlick || isDragSwipe) && Math.abs(dx) > Math.abs(dy) * 1.1) {
+        if (dx < 0) {
+          // Swiped left -> reveal Next photograph
+          const next = (activeIndex + 1) % total;
+          commitPhoto(next, "left");
+        } else {
+          // Swiped right -> reveal Previous photograph
+          const prev = (activeIndex - 1 + total) % total;
+          commitPhoto(prev, "right");
+        }
+      }
+    }
+
+    isSwipingRef.current = false;
+    setDragOffset(0);
+  };
+
+  const handleTouchCancel = () => {
+    touchStartRef.current = null;
+    isSwipingRef.current = false;
+    isVerticalScrollRef.current = false;
+    setDragOffset(0);
+  };
+
+  // Mobile Slide Transform Calculation (Keeps photograph cleanly framed inside the aperture)
+  const getMobileTransform = (index: number) => {
+    const isCurrentActive = index === activeIndex;
+    const isPrevActive = index === prevActiveIndexRef.current;
+    const isNextInLine = index === (activeIndex + 1) % total;
+    const isPrevInLine = index === (activeIndex - 1 + total) % total;
+
+    if (isCurrentActive) {
+      return {
+        x: dragOffset,
+        y: 0,
+        rotate: dragOffset * 0.015,
+        scale: 1,
+        opacity: 1,
+        zIndex: 20,
+      };
+    }
+
+    // Dynamic live peek while finger is dragging horizontally
+    if (dragOffset < 0 && isNextInLine) {
+      return {
+        x: `calc(100% + ${dragOffset}px)`,
+        y: 0,
+        rotate: 0,
+        scale: 0.95 + Math.min(Math.abs(dragOffset) / 800, 0.05),
+        opacity: Math.min(Math.abs(dragOffset) / 100, 1),
+        zIndex: 19,
+      };
+    }
+
+    if (dragOffset > 0 && isPrevInLine) {
+      return {
+        x: `calc(-100% + ${dragOffset}px)`,
+        y: 0,
+        rotate: 0,
+        scale: 0.95 + Math.min(Math.abs(dragOffset) / 800, 0.05),
+        opacity: Math.min(Math.abs(dragOffset) / 100, 1),
+        zIndex: 19,
+      };
+    }
+
+    // Outgoing photo during slide completion
+    if (isPrevActive && !isCurrentActive) {
+      const exitX = slideDirection === "left" ? -70 : slideDirection === "right" ? 70 : 0;
+      return {
+        x: exitX,
+        y: 0,
+        rotate: 0,
+        scale: 0.96,
+        opacity: 0,
+        zIndex: 10,
+      };
+    }
+
+    // Inactive hidden photographs
+    return {
+      x: 0,
+      y: 0,
+      rotate: 0,
+      scale: 0.95,
+      opacity: 0,
+      zIndex: 0,
+    };
+  };
+
+  // Desktop Fan Slot Transform Calculation (100% Preserved)
   const getFanTransform = (index: number) => {
     if (!isFanned || prefersReduced) {
       if (index === activeIndex) {
@@ -251,44 +405,35 @@ export default function RainbowPhotoGallery({
     // Relative circular difference from currently focused index (0 to 3)
     const diff = (index - focusedIndex + total) % total;
 
-    // Arc geometry mapping:
-    // diff === 0: Center Apex (Dominant, largest, closest to viewer)
-    // diff === 1: Right Card (Visibly protruding outside right card border)
-    // diff === 2: Far Left Card (Visibly protruding furthest outside left card border)
-    // diff === 3: Near Left Card (Visibly protruding left between center & far left)
     let x = 0;
     let y = 0;
     let rotate = 0;
-    let scale = isMobile ? 0.89 : 0.91;
+    let scale = 0.91;
     let zIndex = 15;
 
     if (diff === 0) {
-      // Active Centred Image — Largest, apex elevation, perfectly upright
       x = 0;
-      y = isMobile ? -8 : -12;
+      y = -12;
       rotate = 0;
-      scale = isMobile ? 1.0 : 1.02;
+      scale = 1.02;
       zIndex = 40;
     } else if (diff === 1) {
-      // Right side card (protrudes right beyond outer card border)
-      x = isMobile ? 22 : 92;
-      y = isMobile ? -4 : -6;
-      rotate = isMobile ? 6 : 8.5;
-      scale = isMobile ? 0.89 : 0.91;
+      x = 92;
+      y = -6;
+      rotate = 8.5;
+      scale = 0.91;
       zIndex = 25;
     } else if (diff === 2) {
-      // Far Left card (protrudes furthest left into open hero space)
-      x = isMobile ? -30 : -135;
-      y = isMobile ? -1 : -2;
-      rotate = isMobile ? -9 : -12.5;
-      scale = isMobile ? 0.86 : 0.87;
+      x = -135;
+      y = -2;
+      rotate = -12.5;
+      scale = 0.87;
       zIndex = 15;
     } else if (diff === 3) {
-      // Near Left card (protrudes left between center and far left)
-      x = isMobile ? -16 : -72;
-      y = isMobile ? -4 : -6;
-      rotate = isMobile ? -5 : -7;
-      scale = isMobile ? 0.9 : 0.92;
+      x = -72;
+      y = -6;
+      rotate = -7;
+      scale = 0.92;
       zIndex = 25;
     }
 
@@ -301,6 +446,8 @@ export default function RainbowPhotoGallery({
       zIndex,
     };
   };
+
+  const currentIsMobile = typeof window !== "undefined" ? window.innerWidth < 640 : isMobile;
 
   return (
     <div
@@ -316,13 +463,17 @@ export default function RainbowPhotoGallery({
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerCancel}
-      className="relative mt-3 sm:mt-4 aspect-[4/4.7] select-none touch-pan-y cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      onTouchCancel={handleTouchCancel}
+      className="relative mt-3 sm:mt-4 aspect-[4/4.7] select-none touch-pan-y cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-accent sm:overflow-visible overflow-hidden rounded-xl sm:rounded-2xl"
     >
       {/* Base photo aperture / backing frame */}
       <div className="absolute inset-0 rounded-xl sm:rounded-2xl border border-border bg-surface-secondary/80 pointer-events-none" />
 
-      {/* Invisible hover zone padding when fanned so mouse can move freely between cards without collapsing */}
-      {isFanned && (
+      {/* Invisible hover zone padding when fanned on desktop so mouse can move freely between cards */}
+      {!currentIsMobile && isFanned && (
         <div
           className="absolute -inset-x-32 -inset-y-12 z-0 pointer-events-auto"
           onMouseEnter={handleMouseEnter}
@@ -330,10 +481,10 @@ export default function RainbowPhotoGallery({
         />
       )}
 
-      {/* 4 Layered Floating Photographs in Dynamic Centre-Focus Fan Structure */}
+      {/* Layered Photographs: Desktop Arc Fan vs Mobile Clean Slide Carousel */}
       {images.map((img, idx) => {
         const isCenter = idx === focusedIndex;
-        const transform = getFanTransform(idx);
+        const transform = currentIsMobile ? getMobileTransform(idx) : getFanTransform(idx);
 
         return (
           <motion.div
@@ -342,7 +493,15 @@ export default function RainbowPhotoGallery({
             animate={transform}
             transition={
               prefersReduced
-                ? { duration: 0.3 }
+                ? { duration: 0.25 }
+                : currentIsMobile
+                ? {
+                    type: "spring",
+                    stiffness: 260,
+                    damping: 26,
+                    mass: 0.8,
+                    opacity: { duration: 0.35, ease: "easeInOut" },
+                  }
                 : {
                     type: "spring",
                     stiffness: 95,
@@ -352,24 +511,25 @@ export default function RainbowPhotoGallery({
                   }
             }
             onPointerEnter={(e) => {
-              // On desktop hover, dynamically move hovered photograph to centre position
-              if (e.pointerType === "mouse" && isFanned && idx !== focusedIndex) {
+              if (!currentIsMobile && e.pointerType === "mouse" && isFanned && idx !== focusedIndex) {
                 setFocusedIndex(idx);
               }
             }}
             onClick={(e) => {
-              e.stopPropagation();
-              commitPhoto(idx);
+              if (!currentIsMobile) {
+                e.stopPropagation();
+                commitPhoto(idx);
+              }
             }}
             className={`absolute inset-0 w-full h-full rounded-xl sm:rounded-2xl overflow-hidden transition-shadow duration-500 ${
-              isCenter
+              isCenter || currentIsMobile
                 ? "shadow-2xl border border-white/25 dark:border-white/15"
                 : isFanned
                 ? "shadow-xl border border-white/20 dark:border-white/10"
                 : ""
             }`}
             style={{
-              transformOrigin: "50% 88%",
+              transformOrigin: currentIsMobile ? "50% 50%" : "50% 88%",
               backfaceVisibility: "hidden",
               WebkitBackfaceVisibility: "hidden",
             }}
@@ -384,13 +544,30 @@ export default function RainbowPhotoGallery({
               className="object-cover object-center w-full h-full pointer-events-none select-none"
             />
 
-            {/* Depth vignette on background side cards when fan is active */}
-            {isFanned && !isCenter && (
+            {/* Depth vignette on background side cards when fan is active on desktop */}
+            {!isMobile && isFanned && !isCenter && (
               <div className="absolute inset-0 bg-black/15 dark:bg-black/25 pointer-events-none transition-colors duration-400" />
             )}
           </motion.div>
         );
       })}
+
+      {/* Mobile Slide Pagination Indicator (Clean, subtle capsule dots) */}
+      <div
+        className="sm:hidden absolute bottom-2.5 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/45 backdrop-blur-md border border-white/10 pointer-events-none"
+        aria-hidden="true"
+      >
+        {images.map((_, i) => (
+          <span
+            key={i}
+            className={`h-1.5 rounded-full transition-all duration-300 ${
+              i === activeIndex
+                ? "w-4 bg-accent shadow-[0_0_8px_rgba(232,255,112,0.6)]"
+                : "w-1.5 bg-white/40"
+            }`}
+          />
+        ))}
+      </div>
     </div>
   );
 }

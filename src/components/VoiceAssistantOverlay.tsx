@@ -84,6 +84,7 @@ export default function VoiceAssistantOverlay({
 
   return (
     <div
+      data-testid="voice-assistant-overlay"
       className="absolute inset-0 z-30 flex flex-col items-center justify-between bg-[#07080A]/95 p-5 backdrop-blur-md transition-all duration-300 select-none"
       onClick={() => {
         // Tapping anywhere on the overlay when Friday is speaking triggers Tap-to-Interrupt
