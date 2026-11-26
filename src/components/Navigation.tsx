@@ -118,7 +118,7 @@ export default function Navigation({ onOpenTerminal, onOpenContact }: Navigation
             transition={{ duration: 0.36, ease: [0.16, 1, 0.3, 1] }}
             href="#hero"
             onClick={(e) => handleScrollTo(e, "#hero")}
-            className="font-bold tracking-[0.13em] uppercase text-primary hover:text-accent transition-colors select-none whitespace-nowrap text-[13.5px] sm:text-[15.5px] md:text-base pl-1"
+            className="font-bold tracking-[0.12em] uppercase text-primary hover:text-accent transition-colors select-none whitespace-nowrap text-[15px] sm:text-[16.5px] md:text-[17.5px] lg:text-[18px] pl-1"
           >
             NITIN SHUKLA
           </motion.a>

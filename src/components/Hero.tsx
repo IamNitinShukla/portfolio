@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { portfolioData } from "@/data/portfolioData";
-import { ArrowUpRight, Github, Linkedin, Twitter, Mail, MapPin, CheckCircle2, QrCode } from "lucide-react";
+import { ArrowUpRight, Github, Linkedin, Twitter, MapPin, CheckCircle2, QrCode } from "lucide-react";
 import RainbowPhotoGallery from "@/components/RainbowPhotoGallery";
 import CardSurfaceRgbDots from "@/components/CardSurfaceRgbDots";
 import IdBarcode from "@/components/IdBarcode";
@@ -17,6 +17,9 @@ export default function Hero({ onOpenContact }: HeroProps = {}) {
   const [cardMode, setCardMode] = useState<"id" | "upi">("id");
   const [isTransforming, setIsTransforming] = useState<boolean>(false);
 
+  const heroRef = useRef<HTMLElement | null>(null);
+  const spotlightMaskRef = useRef<HTMLDivElement | null>(null);
+
   const handleToggleMode = () => {
     if (isTransforming) return;
     setIsTransforming(true);
@@ -26,6 +29,99 @@ export default function Hero({ onOpenContact }: HeroProps = {}) {
   const handleAnimationComplete = () => {
     setIsTransforming(false);
   };
+
+  // Interactive Dot Background: Desktop cursor spotlight + Mobile stationary right-side spotlight
+  useEffect(() => {
+    const maskEl = spotlightMaskRef.current;
+    if (!maskEl) return;
+
+    let rafId: number;
+    let isDesktopMode = false;
+    let targetX = -9999;
+    let targetY = -9999;
+    let currentX = -9999;
+    let currentY = -9999;
+    let isInside = false;
+
+    const applyMode = () => {
+      const isFinePointer = window.matchMedia("(pointer: fine)").matches;
+      const isMobileWidth = window.innerWidth < 768;
+      const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+      if (!isFinePointer || isMobileWidth || prefersReducedMotion) {
+        isDesktopMode = false;
+        // Mobile / Touchscreen: Soft stationary spotlight positioned toward the RIGHT side of the viewport
+        // Low intensity, soft and diffuse, intentionally revealing a cluster of brighter dots on the right
+        const mobileGradient =
+          "radial-gradient(380px circle at 82% 38%, black 0%, rgba(0, 0, 0, 0.45) 45%, transparent 75%)";
+        maskEl.style.maskImage = mobileGradient;
+        maskEl.style.webkitMaskImage = mobileGradient;
+        maskEl.style.opacity = "0.9";
+      } else {
+        isDesktopMode = true;
+        if (!isInside) {
+          maskEl.style.opacity = "0";
+        }
+      }
+    };
+
+    applyMode();
+    window.addEventListener("resize", applyMode);
+
+    const handlePointerMove = (e: PointerEvent) => {
+      if (!isDesktopMode) return;
+      const hero = heroRef.current;
+      if (!hero) return;
+      const rect = hero.getBoundingClientRect();
+      targetX = e.clientX - rect.left;
+      targetY = e.clientY - rect.top;
+
+      if (!isInside) {
+        isInside = true;
+        currentX = targetX;
+        currentY = targetY;
+        maskEl.style.opacity = "1";
+      }
+    };
+
+    const handlePointerLeave = () => {
+      if (!isDesktopMode) return;
+      isInside = false;
+      maskEl.style.opacity = "0";
+    };
+
+    const hero = heroRef.current;
+    if (hero) {
+      hero.addEventListener("pointermove", handlePointerMove, { passive: true });
+      hero.addEventListener("pointerleave", handlePointerLeave, { passive: true });
+    }
+
+    const render = () => {
+      if (isDesktopMode && isInside && currentX > -5000) {
+        currentX += (targetX - currentX) * 0.15;
+        currentY += (targetY - currentY) * 0.15;
+
+        const roundX = Math.round(currentX);
+        const roundY = Math.round(currentY);
+        const maskGradient = `radial-gradient(360px circle at ${roundX}px ${roundY}px, black 0%, rgba(0, 0, 0, 0.5) 45%, transparent 75%)`;
+
+        maskEl.style.maskImage = maskGradient;
+        maskEl.style.webkitMaskImage = maskGradient;
+      }
+      rafId = requestAnimationFrame(render);
+    };
+
+    rafId = requestAnimationFrame(render);
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      window.removeEventListener("resize", applyMode);
+      if (hero) {
+        hero.removeEventListener("pointermove", handlePointerMove);
+        hero.removeEventListener("pointerleave", handlePointerLeave);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const updateTime = () => {
@@ -57,12 +153,31 @@ export default function Hero({ onOpenContact }: HeroProps = {}) {
 
   return (
     <section
+      ref={heroRef}
       id="hero"
-      className="relative flex flex-col justify-center pt-[110px] pb-12 sm:pt-28 sm:pb-14 lg:pt-36 lg:pb-20 border-b border-border bg-dot-grid overflow-hidden transition-colors"
+      className="relative flex flex-col justify-center pt-[110px] pb-12 sm:pt-28 sm:pb-14 lg:pt-36 lg:pb-20 border-b border-border overflow-hidden transition-colors"
     >
-      {/* Cinematic ambient radial gradient */}
-      <div className="pointer-events-none absolute top-1/4 left-1/4 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[500px] rounded-full bg-accent/[0.05] blur-[150px]" />
-      <div className="pointer-events-none absolute top-1/2 right-1/4 w-[500px] h-[500px] rounded-full bg-accent/[0.04] blur-[140px]" />
+      {/* 1. Base Dot Grid: Always visible, subtle depth across the entire background even when stationary */}
+      <div
+        className="pointer-events-none absolute inset-0 bg-dot-grid opacity-100 z-0"
+        aria-hidden="true"
+      />
+
+      {/* 2. Interactive Spotlight Layer: Desktop cursor tracking & Mobile right-side ambient spotlight */}
+      <div
+        ref={spotlightMaskRef}
+        className="pointer-events-none absolute inset-0 z-0 transition-opacity duration-500 opacity-0"
+        aria-hidden="true"
+      >
+        {/* Brighter dots revealed by the spotlight mask */}
+        <div className="absolute inset-0 bg-dot-grid-bright" />
+        {/* Soft, diffuse ambient radial illumination that smoothly accompanies the spotlight */}
+        <div className="absolute inset-0 bg-accent/[0.04] dark:bg-accent/[0.045]" />
+      </div>
+
+      {/* 3. Cinematic ambient radial gradient accents */}
+      <div className="pointer-events-none absolute top-1/4 left-1/4 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[500px] rounded-full bg-accent/[0.035] blur-[150px]" />
+      <div className="pointer-events-none absolute top-1/2 right-1/4 w-[500px] h-[500px] rounded-full bg-accent/[0.03] blur-[140px]" />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full relative z-10">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 sm:gap-10 lg:gap-8 items-center">
@@ -75,8 +190,8 @@ export default function Hero({ onOpenContact }: HeroProps = {}) {
               {portfolioData.personal.role}
             </p>
 
-            {/* Editorial Main Headline (Responsive fluid scale, natural mobile wrap, zero clipping, no forced breaks on mobile) */}
-            <h1 className="animate-fade-in-up delay-100 text-[clamp(1.85rem,7.5vw,2.45rem)] sm:text-5xl md:text-6xl lg:text-[5.2rem] font-extrabold tracking-tight sm:tracking-[-0.04em] text-primary leading-[1.12] sm:leading-[1.04] lg:leading-[0.98] mb-7 sm:mb-8 lg:mb-10 w-full break-words">
+            {/* Editorial Main Headline (Responsive fluid scale, spacious mobile leading, natural wrap, zero clipping) */}
+            <h1 className="animate-fade-in-up delay-100 text-[clamp(2rem,8.2vw,2.65rem)] sm:text-5xl md:text-6xl lg:text-[5.2rem] font-extrabold tracking-tight sm:tracking-[-0.04em] text-primary leading-[1.20] sm:leading-[1.04] lg:leading-[0.98] mb-6 sm:mb-8 lg:mb-10 w-full break-words">
               {portfolioData.personal.headlineLead}{" "}
               <br className="hidden sm:inline" />
               <span className="text-accent">
@@ -91,19 +206,19 @@ export default function Hero({ onOpenContact }: HeroProps = {}) {
             {/* CTA Buttons & Social Links Row */}
             <div className="animate-fade-in-up delay-200 flex flex-col sm:flex-row items-stretch sm:items-center gap-5 sm:gap-3.5 w-full sm:w-auto">
               
-              {/* Responsive Side-by-Side CTAs */}
-              <div className="grid grid-cols-2 sm:flex sm:items-center gap-2.5 sm:gap-3.5 w-full sm:w-auto">
-                {/* Primary CTA */}
+              {/* Responsive Side-by-Side CTAs (Classy, deliberate button widths, no awkward row stretching) */}
+              <div className="flex flex-wrap items-center gap-3 sm:gap-3.5 w-auto">
+                {/* Primary CTA: View My Work */}
                 <a
                   href="#work"
                   onClick={(e) => handleScrollTo(e, "#work")}
-                  className="group inline-flex items-center justify-center gap-1.5 sm:gap-2 px-4 sm:px-7 py-2.5 sm:py-3.5 rounded-full bg-accent hover:bg-accent-hover text-white dark:text-[#101110] font-bold text-[11px] sm:text-xs tracking-wider uppercase transition-all duration-200 shadow-md sm:shadow-xl shadow-accent/20 whitespace-nowrap text-center"
+                  className="group inline-flex items-center justify-center gap-2 px-5 sm:px-6 py-2.5 sm:py-3 rounded-full bg-accent hover:bg-accent-hover text-white dark:text-[#101110] font-bold text-xs sm:text-[13px] tracking-wider uppercase transition-all duration-200 shadow-md sm:shadow-lg shadow-accent/20 hover:scale-[1.02] active:scale-[0.98] whitespace-nowrap text-center"
                 >
                   <span>View My Work</span>
-                  <ArrowUpRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                  <ArrowUpRight className="w-3.5 h-3.5 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
                 </a>
 
-                {/* Secondary CTA: Say Hello (Opens Contact Modal) */}
+                {/* Secondary CTA: Say Hello (Transparent, subtle elegant outline, white text, opens contact modal) */}
                 <button
                   type="button"
                   onClick={(e) => {
@@ -114,48 +229,41 @@ export default function Hero({ onOpenContact }: HeroProps = {}) {
                       window.dispatchEvent(new CustomEvent("open-contact-modal"));
                     }
                   }}
-                  className="inline-flex items-center justify-center gap-1.5 px-4 sm:px-7 py-2.5 sm:py-3.5 rounded-full bg-surface hover:bg-surface-elevated border border-border hover:border-accent text-primary font-semibold text-[11px] sm:text-xs tracking-wider uppercase transition-all duration-200 shadow-sm whitespace-nowrap text-center cursor-pointer"
+                  className="inline-flex items-center justify-center px-5 sm:px-6 py-2.5 sm:py-3 rounded-full bg-transparent hover:bg-white/[0.05] dark:hover:bg-white/[0.06] border border-neutral-300 dark:border-white/20 hover:border-neutral-500 dark:hover:border-white/40 text-primary dark:text-white font-semibold text-xs sm:text-[13px] tracking-wider uppercase transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] whitespace-nowrap text-center cursor-pointer"
                   aria-label="Open contact modal to say hello"
                 >
                   <span>Say Hello</span>
                 </button>
               </div>
 
-              {/* Social Icon Links (Compact 40px touch-friendly circles) */}
-              <div className="flex items-center justify-start gap-2.5 sm:gap-2 sm:ml-2">
+              {/* Social Icon Links (Exactly 3 transparent icons: GitHub, LinkedIn, X; Mail removed) */}
+              <div className="flex items-center justify-start gap-2 sm:gap-2.5 sm:ml-2">
                 <a
                   href={portfolioData.personal.github}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-10 h-10 sm:w-11 sm:h-11 flex items-center justify-center rounded-full bg-surface border border-border hover:border-accent text-primary-muted hover:text-accent hover:scale-105 active:scale-95 transition-all duration-200 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent cursor-pointer"
+                  className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-full bg-transparent border border-neutral-300/80 dark:border-white/15 hover:border-accent dark:hover:border-accent text-neutral-500 dark:text-[#888888] hover:text-accent dark:hover:text-accent hover:scale-105 active:scale-95 transition-all duration-200 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent cursor-pointer"
                   aria-label="GitHub Profile"
                 >
-                  <Github className="w-4 h-4" />
+                  <Github className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </a>
                 <a
                   href={portfolioData.personal.linkedin}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-10 h-10 sm:w-11 sm:h-11 flex items-center justify-center rounded-full bg-surface border border-border hover:border-accent text-primary-muted hover:text-accent hover:scale-105 active:scale-95 transition-all duration-200 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent cursor-pointer"
+                  className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-full bg-transparent border border-neutral-300/80 dark:border-white/15 hover:border-accent dark:hover:border-accent text-neutral-500 dark:text-[#888888] hover:text-accent dark:hover:text-accent hover:scale-105 active:scale-95 transition-all duration-200 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent cursor-pointer"
                   aria-label="LinkedIn Profile"
                 >
-                  <Linkedin className="w-4 h-4" />
+                  <Linkedin className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </a>
                 <a
                   href={portfolioData.personal.twitter}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-10 h-10 sm:w-11 sm:h-11 flex items-center justify-center rounded-full bg-surface border border-border hover:border-accent text-primary-muted hover:text-accent hover:scale-105 active:scale-95 transition-all duration-200 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent cursor-pointer"
+                  className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-full bg-transparent border border-neutral-300/80 dark:border-white/15 hover:border-accent dark:hover:border-accent text-neutral-500 dark:text-[#888888] hover:text-accent dark:hover:text-accent hover:scale-105 active:scale-95 transition-all duration-200 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent cursor-pointer"
                   aria-label="X Profile"
                 >
-                  <Twitter className="w-4 h-4" />
-                </a>
-                <a
-                  href={`mailto:${portfolioData.personal.email}`}
-                  className="w-10 h-10 sm:w-11 sm:h-11 flex items-center justify-center rounded-full bg-surface border border-border hover:border-accent text-primary-muted hover:text-accent hover:scale-105 active:scale-95 transition-all duration-200 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent cursor-pointer"
-                  aria-label="Send Email"
-                >
-                  <Mail className="w-4 h-4" />
+                  <Twitter className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </a>
               </div>
 

@@ -12,25 +12,46 @@ export default function CursorSpotlight() {
     const isFinePointer = window.matchMedia("(pointer: fine)").matches;
     const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-    if (!isFinePointer || prefersReducedMotion) {
-      if (spotlightRef.current) {
-        spotlightRef.current.style.display = "none";
-      }
-      return;
-    }
-
     const el = spotlightRef.current;
     if (!el) return;
-    el.style.display = "block";
 
     let targetX = window.innerWidth / 2;
     let targetY = window.innerHeight / 2;
     let currentX = targetX;
     let currentY = targetY;
     let isVisible = false;
+    let isDesktopMode = false;
     let rafId: number;
 
+    const applySpotlightMode = () => {
+      const isFinePointer = window.matchMedia("(pointer: fine)").matches;
+      const isMobileWidth = window.innerWidth < 768;
+      const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+      if (!isFinePointer || isMobileWidth || prefersReducedMotion) {
+        isDesktopMode = false;
+        if (prefersReducedMotion) {
+          el.style.display = "none";
+          return;
+        }
+        // Mobile / Touchscreen: Soft stationary ambient glow on the right
+        const isDark = theme === "dark";
+        el.style.display = "block";
+        el.style.opacity = "1";
+        el.style.background = isDark
+          ? "radial-gradient(550px circle at 85% 38%, rgba(232, 255, 112, 0.035) 0%, rgba(232, 255, 112, 0.012) 40%, transparent 70%)"
+          : "radial-gradient(550px circle at 85% 38%, rgba(102, 87, 217, 0.055) 0%, rgba(102, 87, 217, 0.018) 40%, transparent 70%)";
+      } else {
+        isDesktopMode = true;
+        el.style.display = "block";
+      }
+    };
+
+    applySpotlightMode();
+    window.addEventListener("resize", applySpotlightMode);
+
     const handlePointerMove = (e: PointerEvent) => {
+      if (!isDesktopMode) return;
       targetX = e.clientX;
       targetY = e.clientY;
       if (!isVisible) {
@@ -40,6 +61,7 @@ export default function CursorSpotlight() {
     };
 
     const handleMouseLeave = () => {
+      if (!isDesktopMode) return;
       isVisible = false;
       el.style.opacity = "0";
     };
@@ -57,11 +79,13 @@ export default function CursorSpotlight() {
           `radial-gradient(650px circle at ${x}px ${y}px, rgba(102, 87, 217, 0.13) 0%, rgba(102, 87, 217, 0.055) 38%, transparent 70%)`;
 
     const render = () => {
-      // Smooth interpolation (lerp factor 0.14 for organic fluid response)
-      currentX += (targetX - currentX) * 0.14;
-      currentY += (targetY - currentY) * 0.14;
+      if (isDesktopMode) {
+        // Smooth interpolation (lerp factor 0.14 for organic fluid response)
+        currentX += (targetX - currentX) * 0.14;
+        currentY += (targetY - currentY) * 0.14;
 
-      el.style.background = gradient(Math.round(currentX), Math.round(currentY));
+        el.style.background = gradient(Math.round(currentX), Math.round(currentY));
+      }
       rafId = requestAnimationFrame(render);
     };
 
@@ -78,6 +102,7 @@ export default function CursorSpotlight() {
 
     return () => {
       cancelAnimationFrame(rafId);
+      window.removeEventListener("resize", applySpotlightMode);
       window.removeEventListener("pointermove", handlePointerMove);
       document.removeEventListener("mouseleave", handleMouseLeave);
       document.removeEventListener("visibilitychange", handleVisibility);
