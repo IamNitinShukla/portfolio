@@ -1,9 +1,9 @@
 .trigger {
   position: absolute;
-  inset: 21%;
-  min-width: 44px;
-  min-height: 44px;
-  margin: auto;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
   border-radius: 50%;
   pointer-events: auto;
 }
@@ -80,6 +80,8 @@
   color: var(--asst-text-primary);
   box-shadow: var(--asst-shadow);
   color-scheme: light;
+  z-index: 1000;
+  cursor: default;
   transition: background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
 }
 

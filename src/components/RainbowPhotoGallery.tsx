@@ -17,9 +17,13 @@ export default function RainbowPhotoGallery({
   const [isFanned, setIsFanned] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [dragOffset, setDragOffset] = useState(0);
+  const [isMobileExpanded, setIsMobileExpanded] = useState(false);
+  const [isPressHolding, setIsPressHolding] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const leaveTimer = useRef<NodeJS.Timeout | null>(null);
+  const holdTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const hasTriggeredHold = useRef(false);
   const prefersReduced = useReducedMotion();
 
   // Desktop Pointer tracking references
@@ -55,11 +59,14 @@ export default function RainbowPhotoGallery({
     });
   }, [images]);
 
-  // Clean up any hover timer on unmount
+  // Clean up timers on unmount
   useEffect(() => {
     return () => {
       if (leaveTimer.current) {
         clearTimeout(leaveTimer.current);
+      }
+      if (holdTimerRef.current) {
+        clearTimeout(holdTimerRef.current);
       }
     };
   }, []);
@@ -110,7 +117,7 @@ export default function RainbowPhotoGallery({
     }
   };
 
-  // Close fan if user clicks outside on desktop
+  // Close fan if user clicks outside
   useEffect(() => {
     const handleOutsideClick = (e: MouseEvent | TouchEvent) => {
       if (
@@ -119,6 +126,8 @@ export default function RainbowPhotoGallery({
       ) {
         setIsFanned(false);
         setFocusedIndex(activeIndex);
+        setIsMobileExpanded(false);
+        setIsPressHolding(false);
       }
     };
     document.addEventListener("mousedown", handleOutsideClick);
@@ -235,9 +244,17 @@ export default function RainbowPhotoGallery({
       y: touch.clientY,
       time: Date.now(),
     };
+    hasTriggeredHold.current = false;
     isSwipingRef.current = false;
     isVerticalScrollRef.current = false;
     setDragOffset(0);
+
+    // Press-and-hold finger: Spreads cards into curved rainbow formation
+    if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
+    holdTimerRef.current = setTimeout(() => {
+      hasTriggeredHold.current = true;
+      setIsPressHolding(true);
+    }, 220);
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
@@ -250,12 +267,23 @@ export default function RainbowPhotoGallery({
     if (!isSwipingRef.current) {
       // If vertical movement dominates, allow native page scroll completely unhindered
       if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 8) {
+        if (holdTimerRef.current) {
+          clearTimeout(holdTimerRef.current);
+          holdTimerRef.current = null;
+        }
         isVerticalScrollRef.current = true;
+        setIsPressHolding(false);
         return;
       }
       // If horizontal movement dominates, engage horizontal swipe
       if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 10) {
+        if (holdTimerRef.current) {
+          clearTimeout(holdTimerRef.current);
+          holdTimerRef.current = null;
+        }
         isSwipingRef.current = true;
+        // Reveal rainbow cards while swiping
+        setIsPressHolding(true);
       }
     }
 
@@ -266,6 +294,11 @@ export default function RainbowPhotoGallery({
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+
     if (!touchStartRef.current) return;
     const start = touchStartRef.current;
     touchStartRef.current = null;
@@ -273,16 +306,18 @@ export default function RainbowPhotoGallery({
     if (isVerticalScrollRef.current) {
       isVerticalScrollRef.current = false;
       setDragOffset(0);
+      setIsPressHolding(false);
       return;
     }
 
+    const touch = e.changedTouches[0];
+    const dx = touch ? touch.clientX - start.x : dragOffset;
+    const dy = touch ? touch.clientY - start.y : 0;
+    const duration = Date.now() - start.time;
+
     if (isSwipingRef.current) {
-      const touch = e.changedTouches[0];
-      const dx = touch ? touch.clientX - start.x : dragOffset;
-      const dy = touch ? touch.clientY - start.y : 0;
-      const duration = Date.now() - start.time;
       const isQuickFlick = duration < 320 && Math.abs(dx) > 25;
-      const isDragSwipe = Math.abs(dx) >= 40;
+      const isDragSwipe = Math.abs(dx) >= 35;
 
       if ((isQuickFlick || isDragSwipe) && Math.abs(dx) > Math.abs(dy) * 1.1) {
         if (dx < 0) {
@@ -295,28 +330,65 @@ export default function RainbowPhotoGallery({
           commitPhoto(prev);
         }
       }
+      isSwipingRef.current = false;
+      setDragOffset(0);
+      setIsPressHolding(false);
+      return;
     }
 
-    isSwipingRef.current = false;
+    // Tap main photo: Opens and keeps rainbow gallery open. Tap again closes it.
+    const isCleanTap = !hasTriggeredHold.current && duration < 250 && Math.abs(dx) < 12 && Math.abs(dy) < 12;
+    if (isCleanTap) {
+      setIsMobileExpanded(prev => !prev);
+    }
+
+    // Releasing after press-and-hold returns to single-photo unless explicitly activated by tap
+    setIsPressHolding(false);
     setDragOffset(0);
   };
 
   const handleTouchCancel = () => {
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
     touchStartRef.current = null;
     isSwipingRef.current = false;
     isVerticalScrollRef.current = false;
+    setIsPressHolding(false);
     setDragOffset(0);
   };
 
   // Mobile Rainbow Fan Transform Calculation:
-  // Preserves the genuine curved 3D layered rainbow formation on mobile at all times.
-  // diff === 0: Center Apex (Selected photograph in front, dominant, upright)
-  // diff === 1: Right Card (Tilted right, partially visible behind)
-  // diff === 2: Far Left Card (Tilted left, furthest background layer)
-  // diff === 3: Near Left Card (Tilted left, between center and far left)
+  // Default State: Only one photograph visible, clean and properly framed.
+  // Expanded/Hold State: Spreads into curved 3D layered rainbow formation.
   const getMobileRainbowTransform = (index: number) => {
+    const isExpanded = isMobileExpanded || isPressHolding;
     const diff = (index - activeIndex + total) % total;
 
+    // Single photograph default mode: clean framing, no peek
+    if (!isExpanded) {
+      if (diff === 0) {
+        return {
+          x: 0,
+          y: 0,
+          rotate: 0,
+          scale: 1.0,
+          opacity: 1,
+          zIndex: 40,
+        };
+      }
+      return {
+        x: 0,
+        y: 0,
+        rotate: 0,
+        scale: 0.98,
+        opacity: 0,
+        zIndex: 10,
+      };
+    }
+
+    // Curved rainbow formation mode
     if (diff === 0) {
       return {
         x: dragOffset * 0.25,
@@ -509,7 +581,7 @@ export default function RainbowPhotoGallery({
             className={`absolute inset-0 w-full h-full rounded-xl sm:rounded-2xl overflow-hidden transition-shadow duration-500 ${
               isCenter
                 ? "shadow-2xl border border-white/25 dark:border-white/15"
-                : isFanned || currentIsMobile
+                : (!currentIsMobile && isFanned) || (currentIsMobile && (isMobileExpanded || isPressHolding))
                 ? "shadow-xl border border-white/20 dark:border-white/10"
                 : ""
             }`}
@@ -530,7 +602,7 @@ export default function RainbowPhotoGallery({
             />
 
             {/* Depth vignette on background side cards in rainbow fan */}
-            {((currentIsMobile && !isCenter) || (!currentIsMobile && isFanned && !isCenter)) && (
+            {(((currentIsMobile && (isMobileExpanded || isPressHolding) && !isCenter)) || (!currentIsMobile && isFanned && !isCenter)) && (
               <div className="absolute inset-0 bg-black/15 dark:bg-black/25 pointer-events-none transition-colors duration-400" />
             )}
           </motion.div>

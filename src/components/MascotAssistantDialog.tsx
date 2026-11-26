@@ -214,12 +214,24 @@ export default function MascotAssistantDialog({
     const overflow = root.style.overflow;
     root.style.overflow = "hidden";
 
-    dialog.showModal();
+    try {
+      if (!dialog.open) {
+        dialog.showModal();
+      }
+    } catch {
+      dialog.setAttribute("open", "");
+    }
 
     return () => {
       // Abort active stream and voice on unmount
       abortControllerRef.current?.abort();
-      dialog.close();
+      try {
+        if (dialog.open) {
+          dialog.close();
+        }
+      } catch {
+        dialog.removeAttribute("open");
+      }
       root.style.overflow = overflow;
       if (opener instanceof HTMLElement) {
         opener.focus({ preventScroll: true });
@@ -465,6 +477,20 @@ export default function MascotAssistantDialog({
           voiceAssistant.stopVoiceMode();
           stopStreaming();
           onDismiss();
+          return;
+        }
+        const rect = dialogRef.current?.getBoundingClientRect();
+        if (rect) {
+          const isInside =
+            rect.top <= event.clientY &&
+            event.clientY <= rect.top + rect.height &&
+            rect.left <= event.clientX &&
+            event.clientX <= rect.left + rect.width;
+          if (!isInside) {
+            voiceAssistant.stopVoiceMode();
+            stopStreaming();
+            onDismiss();
+          }
         }
       }}
       onKeyDown={event => {

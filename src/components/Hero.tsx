@@ -44,7 +44,6 @@ export default function Hero({ onOpenContact }: HeroProps = {}) {
     let currentX = -9999;
     let currentY = -9999;
     let isMoving = false;
-    let idleTimer: NodeJS.Timeout | null = null;
 
     const setAmbientActive = (active: boolean) => {
       if (ambientEl) {
@@ -95,19 +94,16 @@ export default function Hero({ onOpenContact }: HeroProps = {}) {
         currentY = targetY;
         setAmbientActive(false);
       }
-
-      if (idleTimer) clearTimeout(idleTimer);
-      idleTimer = setTimeout(() => {
-        if (isDesktopMode) {
-          isMoving = false;
-          setAmbientActive(true);
-        }
-      }, 2000);
     };
 
     const handlePointerLeave = () => {
       if (!isDesktopMode) return;
-      if (idleTimer) clearTimeout(idleTimer);
+      isMoving = false;
+      setAmbientActive(true);
+    };
+
+    const handleWindowBlur = () => {
+      if (!isDesktopMode) return;
       isMoving = false;
       setAmbientActive(true);
     };
@@ -116,6 +112,7 @@ export default function Hero({ onOpenContact }: HeroProps = {}) {
     if (hero) {
       hero.addEventListener("pointermove", handlePointerMove, { passive: true });
       hero.addEventListener("pointerleave", handlePointerLeave, { passive: true });
+      window.addEventListener("blur", handleWindowBlur);
     }
 
     const render = () => {
@@ -137,8 +134,8 @@ export default function Hero({ onOpenContact }: HeroProps = {}) {
 
     return () => {
       cancelAnimationFrame(rafId);
-      if (idleTimer) clearTimeout(idleTimer);
       window.removeEventListener("resize", applyMode);
+      window.removeEventListener("blur", handleWindowBlur);
       if (hero) {
         hero.removeEventListener("pointermove", handlePointerMove);
         hero.removeEventListener("pointerleave", handlePointerLeave);

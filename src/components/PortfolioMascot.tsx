@@ -31,14 +31,9 @@ export default function PortfolioMascot({
     if (clickTimerRef.current) {
       clearTimeout(clickTimerRef.current);
       clickTimerRef.current = null;
-      // Double click detected: if already open, close it; otherwise open in voice mode
-      if (assistantOpen) {
-        setAssistantOpen(false);
-        setStartInVoiceMode(false);
-      } else {
-        setStartInVoiceMode(true);
-        setAssistantOpen(true);
-      }
+      // Double click detected: launch voice mode
+      setStartInVoiceMode(true);
+      setAssistantOpen(true);
       return;
     }
 
@@ -46,7 +41,7 @@ export default function PortfolioMascot({
       clickTimerRef.current = null;
       // Single click: open standard conversational dialog
       setStartInVoiceMode(false);
-      setAssistantOpen(open => !open);
+      setAssistantOpen(true);
     }, 280);
   };
 
@@ -57,13 +52,8 @@ export default function PortfolioMascot({
       clearTimeout(clickTimerRef.current);
       clickTimerRef.current = null;
     }
-    if (assistantOpen) {
-      setAssistantOpen(false);
-      setStartInVoiceMode(false);
-    } else {
-      setStartInVoiceMode(true);
-      setAssistantOpen(true);
-    }
+    setStartInVoiceMode(true);
+    setAssistantOpen(true);
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
@@ -78,13 +68,8 @@ export default function PortfolioMascot({
         clickTimerRef.current = null;
       }
       lastTapRef.current = 0;
-      if (assistantOpen) {
-        setAssistantOpen(false);
-        setStartInVoiceMode(false);
-      } else {
-        setStartInVoiceMode(true);
-        setAssistantOpen(true);
-      }
+      setStartInVoiceMode(true);
+      setAssistantOpen(true);
     } else {
       lastTapRef.current = now;
     }
@@ -92,7 +77,7 @@ export default function PortfolioMascot({
 
   return (
     <>
-      <div className={`pointer-events-none fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-[max(1rem,env(safe-area-inset-right))] z-30 w-24 max-w-[25vw] sm:w-32 lg:bottom-[max(6px,env(safe-area-inset-bottom))] lg:right-[max(2px,env(safe-area-inset-right))] lg:w-44 ${className}`}>
+      <div className={`pointer-events-none fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-[max(1rem,env(safe-area-inset-right))] z-40 w-24 max-w-[25vw] sm:w-32 lg:bottom-[max(6px,env(safe-area-inset-bottom))] lg:right-[max(2px,env(safe-area-inset-right))] lg:w-44 ${className}`}>
         <button
           type="button"
           data-testid="mascot-assistant-trigger"
