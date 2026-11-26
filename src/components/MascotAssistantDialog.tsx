@@ -252,12 +252,37 @@ export default function MascotAssistantDialog({
 
   const voiceAssistant = useVoiceAssistant({ onSendMessage: (query, signal) => send(query, undefined, signal) });
 
+  const hasAutoStartedVoice = useRef(false);
+
   // Auto-launch Voice Mode if requested (e.g. via double-click on mascot)
   useEffect(() => {
-    if (startInVoiceMode && !voiceAssistant.isActive) {
+    if (startInVoiceMode && !hasAutoStartedVoice.current) {
+      hasAutoStartedVoice.current = true;
       voiceAssistant.startVoiceMode();
     }
   }, [startInVoiceMode, voiceAssistant]);
+
+  // Global escape key listener ensuring Voice Mode and dialog always close cleanly
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        voiceAssistant.stopVoiceMode();
+        stopStreaming();
+        onDismiss();
+      }
+    };
+    window.addEventListener("keydown", handleGlobalKeyDown);
+    return () => window.removeEventListener("keydown", handleGlobalKeyDown);
+  }, [voiceAssistant, onDismiss]);
+
+  // Clean up all audio/stream/recognition resources on unmount
+  useEffect(() => {
+    return () => {
+      voiceAssistant.stopVoiceMode();
+      stopStreaming();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Reset to a clean fresh in-memory session
   function handleNewConversation() {
@@ -442,7 +467,17 @@ export default function MascotAssistantDialog({
           onDismiss();
         }
       }}
-      onKeyDown={event => event.stopPropagation()}
+      onKeyDown={event => {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          event.stopPropagation();
+          voiceAssistant.stopVoiceMode();
+          stopStreaming();
+          onDismiss();
+          return;
+        }
+        event.stopPropagation();
+      }}
     >
       <div className={styles.panel}>
         <h2 id={`${id}-title`} className="sr-only">
@@ -485,6 +520,11 @@ export default function MascotAssistantDialog({
             onInterrupt={voiceAssistant.interrupt}
             onToggleMute={voiceAssistant.toggleMute}
             onExit={voiceAssistant.stopVoiceMode}
+            onClose={() => {
+              voiceAssistant.stopVoiceMode();
+              stopStreaming();
+              onDismiss();
+            }}
             onRetry={voiceAssistant.retryListening}
             audioLevel={voiceAssistant.audioLevel}
           />

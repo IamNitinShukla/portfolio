@@ -12,6 +12,7 @@ interface VoiceAssistantOverlayProps {
   onInterrupt?: () => void;
   onToggleMute: () => void;
   onExit: () => void;
+  onClose?: () => void;
   onRetry?: () => void;
   audioLevel?: number;
 }
@@ -45,6 +46,7 @@ export default function VoiceAssistantOverlay({
   onInterrupt,
   onToggleMute,
   onExit,
+  onClose,
   onRetry,
   audioLevel,
 }: VoiceAssistantOverlayProps) {
@@ -135,7 +137,7 @@ export default function VoiceAssistantOverlay({
 
           <button
             type="button"
-            onClick={onExit}
+            onClick={onClose || onExit}
             className="flex h-7 w-7 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-neutral-400 transition-all hover:bg-white/10 hover:text-white"
             aria-label="Close Friday Voice Mode"
           >

@@ -31,9 +31,14 @@ export default function PortfolioMascot({
     if (clickTimerRef.current) {
       clearTimeout(clickTimerRef.current);
       clickTimerRef.current = null;
-      // Double click detected: launch Voice Mode directly
-      setStartInVoiceMode(true);
-      setAssistantOpen(true);
+      // Double click detected: if already open, close it; otherwise open in voice mode
+      if (assistantOpen) {
+        setAssistantOpen(false);
+        setStartInVoiceMode(false);
+      } else {
+        setStartInVoiceMode(true);
+        setAssistantOpen(true);
+      }
       return;
     }
 
@@ -52,8 +57,13 @@ export default function PortfolioMascot({
       clearTimeout(clickTimerRef.current);
       clickTimerRef.current = null;
     }
-    setStartInVoiceMode(true);
-    setAssistantOpen(true);
+    if (assistantOpen) {
+      setAssistantOpen(false);
+      setStartInVoiceMode(false);
+    } else {
+      setStartInVoiceMode(true);
+      setAssistantOpen(true);
+    }
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
@@ -68,8 +78,13 @@ export default function PortfolioMascot({
         clickTimerRef.current = null;
       }
       lastTapRef.current = 0;
-      setStartInVoiceMode(true);
-      setAssistantOpen(true);
+      if (assistantOpen) {
+        setAssistantOpen(false);
+        setStartInVoiceMode(false);
+      } else {
+        setStartInVoiceMode(true);
+        setAssistantOpen(true);
+      }
     } else {
       lastTapRef.current = now;
     }

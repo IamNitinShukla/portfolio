@@ -17,11 +17,9 @@ export default function RainbowPhotoGallery({
   const [isFanned, setIsFanned] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [dragOffset, setDragOffset] = useState(0);
-  const [slideDirection, setSlideDirection] = useState<"left" | "right" | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const leaveTimer = useRef<NodeJS.Timeout | null>(null);
-  const prevActiveIndexRef = useRef(0);
   const prefersReduced = useReducedMotion();
 
   // Desktop Pointer tracking references
@@ -92,14 +90,10 @@ export default function RainbowPhotoGallery({
   }, [activeIndex]);
 
   // Handle slide selection & commitment
-  const commitPhoto = useCallback((index: number, direction?: "left" | "right") => {
-    prevActiveIndexRef.current = activeIndex;
-    if (direction) {
-      setSlideDirection(direction);
-    }
+  const commitPhoto = useCallback((index: number) => {
     setActiveIndex(index);
     setFocusedIndex(index);
-  }, [activeIndex]);
+  }, []);
 
   // Mouse hover event handlers for desktop
   const handleMouseEnter = () => {
@@ -140,11 +134,11 @@ export default function RainbowPhotoGallery({
     if (e.key === "ArrowLeft") {
       e.preventDefault();
       const prev = (activeIndex - 1 + total) % total;
-      commitPhoto(prev, "right");
+      commitPhoto(prev);
     } else if (e.key === "ArrowRight") {
       e.preventDefault();
       const next = (activeIndex + 1) % total;
-      commitPhoto(next, "left");
+      commitPhoto(next);
     } else if ((e.key === "Enter" || e.key === " ") && !isMobile) {
       e.preventDefault();
       setIsFanned((prev) => !prev);
@@ -232,7 +226,7 @@ export default function RainbowPhotoGallery({
     hasDragged.current = false;
   };
 
-  // Mobile Touch Swipe Handlers (Only active for mobile/touch)
+  // Mobile Touch Swipe Handlers (Seamlessly navigate within the rainbow fan formation)
   const handleTouchStart = (e: React.TouchEvent) => {
     if (e.touches.length !== 1) return;
     const touch = e.touches[0];
@@ -266,7 +260,7 @@ export default function RainbowPhotoGallery({
     }
 
     if (isSwipingRef.current) {
-      // Responsive live finger dragging with subtle resistance
+      // Subtle responsive tactile feedback during finger drag
       setDragOffset(dx);
     }
   };
@@ -287,18 +281,18 @@ export default function RainbowPhotoGallery({
       const dx = touch ? touch.clientX - start.x : dragOffset;
       const dy = touch ? touch.clientY - start.y : 0;
       const duration = Date.now() - start.time;
-      const isQuickFlick = duration < 320 && Math.abs(dx) > 28;
-      const isDragSwipe = Math.abs(dx) >= 44;
+      const isQuickFlick = duration < 320 && Math.abs(dx) > 25;
+      const isDragSwipe = Math.abs(dx) >= 40;
 
       if ((isQuickFlick || isDragSwipe) && Math.abs(dx) > Math.abs(dy) * 1.1) {
         if (dx < 0) {
-          // Swiped left -> reveal Next photograph
+          // Swiped left -> move to Next photograph in rainbow formation
           const next = (activeIndex + 1) % total;
-          commitPhoto(next, "left");
+          commitPhoto(next);
         } else {
-          // Swiped right -> reveal Previous photograph
+          // Swiped right -> move to Previous photograph in rainbow formation
           const prev = (activeIndex - 1 + total) % total;
-          commitPhoto(prev, "right");
+          commitPhoto(prev);
         }
       }
     }
@@ -314,68 +308,60 @@ export default function RainbowPhotoGallery({
     setDragOffset(0);
   };
 
-  // Mobile Slide Transform Calculation (Keeps photograph cleanly framed inside the aperture)
-  const getMobileTransform = (index: number) => {
-    const isCurrentActive = index === activeIndex;
-    const isPrevActive = index === prevActiveIndexRef.current;
-    const isNextInLine = index === (activeIndex + 1) % total;
-    const isPrevInLine = index === (activeIndex - 1 + total) % total;
+  // Mobile Rainbow Fan Transform Calculation:
+  // Preserves the genuine curved 3D layered rainbow formation on mobile at all times.
+  // diff === 0: Center Apex (Selected photograph in front, dominant, upright)
+  // diff === 1: Right Card (Tilted right, partially visible behind)
+  // diff === 2: Far Left Card (Tilted left, furthest background layer)
+  // diff === 3: Near Left Card (Tilted left, between center and far left)
+  const getMobileRainbowTransform = (index: number) => {
+    const diff = (index - activeIndex + total) % total;
 
-    if (isCurrentActive) {
+    if (diff === 0) {
       return {
-        x: dragOffset,
-        y: 0,
-        rotate: dragOffset * 0.015,
-        scale: 1,
+        x: dragOffset * 0.25,
+        y: -8,
+        rotate: dragOffset * 0.02,
+        scale: 1.0,
         opacity: 1,
-        zIndex: 20,
+        zIndex: 40,
       };
-    }
-
-    // Dynamic live peek while finger is dragging horizontally
-    if (dragOffset < 0 && isNextInLine) {
+    } else if (diff === 1) {
       return {
-        x: `calc(100% + ${dragOffset}px)`,
-        y: 0,
-        rotate: 0,
-        scale: 0.95 + Math.min(Math.abs(dragOffset) / 800, 0.05),
-        opacity: Math.min(Math.abs(dragOffset) / 100, 1),
-        zIndex: 19,
+        x: 22 + dragOffset * 0.1,
+        y: -4,
+        rotate: 6 + dragOffset * 0.01,
+        scale: 0.89,
+        opacity: 1,
+        zIndex: 25,
       };
-    }
-
-    if (dragOffset > 0 && isPrevInLine) {
+    } else if (diff === 2) {
       return {
-        x: `calc(-100% + ${dragOffset}px)`,
-        y: 0,
-        rotate: 0,
-        scale: 0.95 + Math.min(Math.abs(dragOffset) / 800, 0.05),
-        opacity: Math.min(Math.abs(dragOffset) / 100, 1),
-        zIndex: 19,
+        x: -30 + dragOffset * 0.1,
+        y: -1,
+        rotate: -9 + dragOffset * 0.01,
+        scale: 0.86,
+        opacity: 1,
+        zIndex: 15,
       };
-    }
-
-    // Outgoing photo during slide completion
-    if (isPrevActive && !isCurrentActive) {
-      const exitX = slideDirection === "left" ? -70 : slideDirection === "right" ? 70 : 0;
+    } else if (diff === 3) {
       return {
-        x: exitX,
-        y: 0,
-        rotate: 0,
-        scale: 0.96,
-        opacity: 0,
-        zIndex: 10,
+        x: -16 + dragOffset * 0.1,
+        y: -4,
+        rotate: -5 + dragOffset * 0.01,
+        scale: 0.9,
+        opacity: 1,
+        zIndex: 25,
       };
     }
 
-    // Inactive hidden photographs
     return {
       x: 0,
       y: 0,
       rotate: 0,
-      scale: 0.95,
-      opacity: 0,
-      zIndex: 0,
+      scale: 0.9,
+      opacity: 1,
+      zIndex: 10,
     };
   };
 
@@ -467,7 +453,7 @@ export default function RainbowPhotoGallery({
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
       onTouchCancel={handleTouchCancel}
-      className="relative mt-3 sm:mt-4 aspect-[4/4.7] select-none touch-pan-y cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-accent sm:overflow-visible overflow-hidden rounded-xl sm:rounded-2xl"
+      className="relative mt-3 sm:mt-4 aspect-[4/4.7] select-none touch-pan-y cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
     >
       {/* Base photo aperture / backing frame */}
       <div className="absolute inset-0 rounded-xl sm:rounded-2xl border border-border bg-surface-secondary/80 pointer-events-none" />
@@ -481,10 +467,10 @@ export default function RainbowPhotoGallery({
         />
       )}
 
-      {/* Layered Photographs: Desktop Arc Fan vs Mobile Clean Slide Carousel */}
+      {/* Layered Photographs: Mobile Continuous Rainbow Fan vs Desktop Hover Arc Fan */}
       {images.map((img, idx) => {
-        const isCenter = idx === focusedIndex;
-        const transform = currentIsMobile ? getMobileTransform(idx) : getFanTransform(idx);
+        const isCenter = currentIsMobile ? idx === activeIndex : idx === focusedIndex;
+        const transform = currentIsMobile ? getMobileRainbowTransform(idx) : getFanTransform(idx);
 
         return (
           <motion.div
@@ -497,10 +483,9 @@ export default function RainbowPhotoGallery({
                 : currentIsMobile
                 ? {
                     type: "spring",
-                    stiffness: 260,
-                    damping: 26,
-                    mass: 0.8,
-                    opacity: { duration: 0.35, ease: "easeInOut" },
+                    stiffness: 140,
+                    damping: 20,
+                    mass: 0.85,
                   }
                 : {
                     type: "spring",
@@ -522,14 +507,14 @@ export default function RainbowPhotoGallery({
               }
             }}
             className={`absolute inset-0 w-full h-full rounded-xl sm:rounded-2xl overflow-hidden transition-shadow duration-500 ${
-              isCenter || currentIsMobile
+              isCenter
                 ? "shadow-2xl border border-white/25 dark:border-white/15"
-                : isFanned
+                : isFanned || currentIsMobile
                 ? "shadow-xl border border-white/20 dark:border-white/10"
                 : ""
             }`}
             style={{
-              transformOrigin: currentIsMobile ? "50% 50%" : "50% 88%",
+              transformOrigin: "50% 88%",
               backfaceVisibility: "hidden",
               WebkitBackfaceVisibility: "hidden",
             }}
@@ -544,30 +529,13 @@ export default function RainbowPhotoGallery({
               className="object-cover object-center w-full h-full pointer-events-none select-none"
             />
 
-            {/* Depth vignette on background side cards when fan is active on desktop */}
-            {!isMobile && isFanned && !isCenter && (
+            {/* Depth vignette on background side cards in rainbow fan */}
+            {((currentIsMobile && !isCenter) || (!currentIsMobile && isFanned && !isCenter)) && (
               <div className="absolute inset-0 bg-black/15 dark:bg-black/25 pointer-events-none transition-colors duration-400" />
             )}
           </motion.div>
         );
       })}
-
-      {/* Mobile Slide Pagination Indicator (Clean, subtle capsule dots) */}
-      <div
-        className="sm:hidden absolute bottom-2.5 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/45 backdrop-blur-md border border-white/10 pointer-events-none"
-        aria-hidden="true"
-      >
-        {images.map((_, i) => (
-          <span
-            key={i}
-            className={`h-1.5 rounded-full transition-all duration-300 ${
-              i === activeIndex
-                ? "w-4 bg-accent shadow-[0_0_8px_rgba(232,255,112,0.6)]"
-                : "w-1.5 bg-white/40"
-            }`}
-          />
-        ))}
-      </div>
     </div>
   );
 }

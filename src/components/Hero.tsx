@@ -19,6 +19,7 @@ export default function Hero({ onOpenContact }: HeroProps = {}) {
 
   const heroRef = useRef<HTMLElement | null>(null);
   const spotlightMaskRef = useRef<HTMLDivElement | null>(null);
+  const ambientMaskRef = useRef<HTMLDivElement | null>(null);
 
   const handleToggleMode = () => {
     if (isTransforming) return;
@@ -30,10 +31,11 @@ export default function Hero({ onOpenContact }: HeroProps = {}) {
     setIsTransforming(false);
   };
 
-  // Interactive Dot Background: Desktop cursor spotlight + Mobile stationary right-side spotlight
+  // Interactive Dot Background: Dual ambient spotlights (desktop initial & idle) + Cursor-following spotlight + Mobile stationary spotlight
   useEffect(() => {
     const maskEl = spotlightMaskRef.current;
-    if (!maskEl) return;
+    const ambientEl = ambientMaskRef.current;
+    if (!maskEl || !ambientEl) return;
 
     let rafId: number;
     let isDesktopMode = false;
@@ -41,7 +43,17 @@ export default function Hero({ onOpenContact }: HeroProps = {}) {
     let targetY = -9999;
     let currentX = -9999;
     let currentY = -9999;
-    let isInside = false;
+    let isMoving = false;
+    let idleTimer: NodeJS.Timeout | null = null;
+
+    const setAmbientActive = (active: boolean) => {
+      if (ambientEl) {
+        ambientEl.style.opacity = active ? "1" : "0";
+      }
+      if (maskEl) {
+        maskEl.style.opacity = active ? "0" : "1";
+      }
+    };
 
     const applyMode = () => {
       const isFinePointer = window.matchMedia("(pointer: fine)").matches;
@@ -51,7 +63,7 @@ export default function Hero({ onOpenContact }: HeroProps = {}) {
       if (!isFinePointer || isMobileWidth || prefersReducedMotion) {
         isDesktopMode = false;
         // Mobile / Touchscreen: Soft stationary spotlight positioned toward the RIGHT side of the viewport
-        // Low intensity, soft and diffuse, intentionally revealing a cluster of brighter dots on the right
+        ambientEl.style.opacity = "0";
         const mobileGradient =
           "radial-gradient(380px circle at 82% 38%, black 0%, rgba(0, 0, 0, 0.45) 45%, transparent 75%)";
         maskEl.style.maskImage = mobileGradient;
@@ -59,9 +71,10 @@ export default function Hero({ onOpenContact }: HeroProps = {}) {
         maskEl.style.opacity = "0.9";
       } else {
         isDesktopMode = true;
-        if (!isInside) {
-          maskEl.style.opacity = "0";
-        }
+        // Desktop default before pointer movement: dual ambient lights active
+        maskEl.style.maskImage = "";
+        maskEl.style.webkitMaskImage = "";
+        setAmbientActive(true);
       }
     };
 
@@ -76,18 +89,27 @@ export default function Hero({ onOpenContact }: HeroProps = {}) {
       targetX = e.clientX - rect.left;
       targetY = e.clientY - rect.top;
 
-      if (!isInside) {
-        isInside = true;
+      if (!isMoving) {
+        isMoving = true;
         currentX = targetX;
         currentY = targetY;
-        maskEl.style.opacity = "1";
+        setAmbientActive(false);
       }
+
+      if (idleTimer) clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => {
+        if (isDesktopMode) {
+          isMoving = false;
+          setAmbientActive(true);
+        }
+      }, 2000);
     };
 
     const handlePointerLeave = () => {
       if (!isDesktopMode) return;
-      isInside = false;
-      maskEl.style.opacity = "0";
+      if (idleTimer) clearTimeout(idleTimer);
+      isMoving = false;
+      setAmbientActive(true);
     };
 
     const hero = heroRef.current;
@@ -97,7 +119,7 @@ export default function Hero({ onOpenContact }: HeroProps = {}) {
     }
 
     const render = () => {
-      if (isDesktopMode && isInside && currentX > -5000) {
+      if (isDesktopMode && isMoving && currentX > -5000) {
         currentX += (targetX - currentX) * 0.15;
         currentY += (targetY - currentY) * 0.15;
 
@@ -115,6 +137,7 @@ export default function Hero({ onOpenContact }: HeroProps = {}) {
 
     return () => {
       cancelAnimationFrame(rafId);
+      if (idleTimer) clearTimeout(idleTimer);
       window.removeEventListener("resize", applyMode);
       if (hero) {
         hero.removeEventListener("pointermove", handlePointerMove);
@@ -157,10 +180,26 @@ export default function Hero({ onOpenContact }: HeroProps = {}) {
       id="hero"
       className="relative flex flex-col justify-center pt-[110px] pb-12 sm:pt-28 sm:pb-14 lg:pt-36 lg:pb-20 border-b border-border overflow-hidden transition-colors"
     >
-      {/* Interactive Cursor Spotlight Layer: Dots appear strictly inside the cursor spotlight on desktop, and stationary right-side spotlight on mobile */}
+      {/* 1. Default Ambient Dual-Spotlight Layer (Upper-Left + Lower-Right softly illuminating background dots before movement or when idle) */}
+      <div
+        ref={ambientMaskRef}
+        className="pointer-events-none absolute inset-0 z-0 transition-opacity duration-700 ease-out opacity-100"
+        aria-hidden="true"
+        style={{
+          maskImage:
+            "radial-gradient(420px circle at 18% 22%, black 0%, rgba(0, 0, 0, 0.45) 40%, transparent 72%), radial-gradient(480px circle at 82% 70%, black 0%, rgba(0, 0, 0, 0.45) 40%, transparent 72%)",
+          WebkitMaskImage:
+            "radial-gradient(420px circle at 18% 22%, black 0%, rgba(0, 0, 0, 0.45) 40%, transparent 72%), radial-gradient(480px circle at 82% 70%, black 0%, rgba(0, 0, 0, 0.45) 40%, transparent 72%)",
+        }}
+      >
+        <div className="absolute inset-0 bg-dot-grid-bright" />
+        <div className="absolute inset-0 bg-accent/[0.035] dark:bg-accent/[0.04]" />
+      </div>
+
+      {/* 2. Interactive Cursor Spotlight Layer: Dots appear strictly inside the cursor spotlight on desktop, and stationary right-side spotlight on mobile */}
       <div
         ref={spotlightMaskRef}
-        className="pointer-events-none absolute inset-0 z-0 transition-opacity duration-500 opacity-0"
+        className="pointer-events-none absolute inset-0 z-0 transition-opacity duration-500 ease-out opacity-0"
         aria-hidden="true"
       >
         {/* Dots revealed strictly by the spotlight mask */}
