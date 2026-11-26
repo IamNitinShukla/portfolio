@@ -158,11 +158,14 @@ export async function POST(req: NextRequest) {
   const envModel = process.env.GEMINI_MODEL;
   const primaryModel = envModel && envModel.trim() ? envModel.trim() : "gemini-flash-lite-latest";
   const fastFallbacks = ["gemini-flash-lite-latest", "gemini-2.5-flash", "gemini-3.5-flash-lite"];
-  const candidateModels = Array.from(new Set([primaryModel, ...fastFallbacks]));
+  const voice = req.headers.get("x-friday-voice") === "1";
+  const candidateModels = voice ? [primaryModel] : Array.from(new Set([primaryModel, ...fastFallbacks]));
 
   const geminiPayload = {
     systemInstruction: {
-      parts: [{ text: dynamicSystemInstruction }],
+      parts: [{ text: voice
+        ? dynamicSystemInstruction + "\nThis response will be spoken aloud. Give a direct plain-text answer in one or two short sentences, ideally under 35 words. Use follow-up turns for more detail."
+        : dynamicSystemInstruction }],
     },
     contents,
     generationConfig: {
@@ -187,7 +190,7 @@ export async function POST(req: NextRequest) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(geminiPayload),
-        signal: AbortSignal.timeout(timeoutMs),
+        signal: voice ? AbortSignal.any([req.signal, AbortSignal.timeout(40000)]) : AbortSignal.timeout(timeoutMs),
       });
 
       if (res.ok && res.body) {
@@ -197,6 +200,10 @@ export async function POST(req: NextRequest) {
       }
 
       lastErrorReason = `HTTP ${res.status} from ${model}`;
+      if (voice) {
+        activeResponse = res;
+        break;
+      }
 
       // If 503 (high demand) or 404 (model not found), fail over immediately
       if (res.status === 503 || res.status === 404 || res.status === 429) {
@@ -237,6 +244,7 @@ export async function POST(req: NextRequest) {
 
   let sseBuffer = "";
   let ttft: number | null = null;
+  let voiceComplete = false;
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -244,6 +252,7 @@ export async function POST(req: NextRequest) {
         while (true) {
           const { done, value } = await upstreamReader.read();
           if (done) {
+            if (voice && !voiceComplete) throw new Error("Incomplete voice response.");
             const totalDuration = Date.now() - requestStartTime;
             console.log(
               `[Friday Assistant] Model: ${activeModel} | Status: 200 | TTFT: ${ttft ?? totalDuration}ms | Total: ${totalDuration}ms | Source: Gemini`
@@ -277,7 +286,12 @@ export async function POST(req: NextRequest) {
               const jsonStr = trimmed.slice(6);
               try {
                 const parsed = JSON.parse(jsonStr);
-                const textPart = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
+                const candidate = parsed.candidates?.[0];
+                if (voice && candidate?.finishReason === "STOP") voiceComplete = true;
+                const textPart = voice
+                  ? candidate?.content?.parts?.filter((part: { thought?: boolean }) => !part.thought)
+                    .map((part: { text?: string }) => part.text || "").join("")
+                  : candidate?.content?.parts?.[0]?.text;
                 if (textPart) {
                   controller.enqueue(
                     encoder.encode(`data: ${JSON.stringify({ text: textPart })}\n\n`)

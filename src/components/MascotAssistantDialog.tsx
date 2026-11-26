@@ -248,25 +248,12 @@ export default function MascotAssistantDialog({
     setIsStreaming(false);
   }
 
-  // Voice Assistant Hook integration
-  const sendRef = useRef<(text: string, directPrompt?: string) => Promise<void>>();
-
-  const voiceAssistant = useVoiceAssistant({
-    onSendMessage: async (query: string) => {
-      if (sendRef.current) {
-        await sendRef.current(query);
-      }
-    },
-    isStreaming,
-  });
-
-  const voiceAssistantRef = useRef(voiceAssistant);
-  voiceAssistantRef.current = voiceAssistant;
+  const voiceAssistant = useVoiceAssistant({ onSendMessage: (query, signal) => send(query, undefined, signal) });
 
   // Reset to a clean fresh in-memory session
   function handleNewConversation() {
     stopStreaming();
-    voiceAssistant.interrupt();
+    voiceAssistant.stopVoiceMode();
     setMessages([
       { id: generateId("msg"), sender: "assistant", text: welcomeBody },
     ]);
@@ -274,9 +261,10 @@ export default function MascotAssistantDialog({
     inputRef.current?.focus({ preventScroll: true });
   }
 
-  async function send(text: string, directPrompt?: string) {
+  async function send(text: string, directPrompt?: string, voiceSignal?: AbortSignal) {
     const query = (directPrompt ?? text).trim();
-    if (!query) return;
+    if (!query) return "";
+    voiceSignal?.throwIfAborted();
 
     if (isStreaming) {
       stopStreaming();
@@ -307,6 +295,14 @@ export default function MascotAssistantDialog({
     }));
 
     const currentMessagesBeforeStream = [...messagesRef.current, userMessage];
+    const cancelVoice = () => {
+      abortController.abort();
+      if (abortControllerRef.current !== abortController) return;
+      abortControllerRef.current = null;
+      setIsStreaming(false);
+      setMessages(prev => prev.filter(message => message.id !== initialAssistantMessage.id));
+    };
+    voiceSignal?.addEventListener("abort", cancelVoice, { once: true });
     setMessages([...currentMessagesBeforeStream, initialAssistantMessage]);
     setDraft("");
     setIsStreaming(true);
@@ -318,7 +314,7 @@ export default function MascotAssistantDialog({
     try {
       const response = await fetch("/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(voiceSignal && { "X-Friday-Voice": "1" }) },
         body: JSON.stringify({ message: query, history: historyPayload }),
         signal: abortController.signal,
       });
@@ -329,6 +325,7 @@ export default function MascotAssistantDialog({
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
+      let completed = false;
       let streamedText = "";
       let sseBuffer = "";
 
@@ -351,7 +348,7 @@ export default function MascotAssistantDialog({
                 setMessages(prev => {
                   const updated = [...prev];
                   const lastIdx = updated.length - 1;
-                  if (lastIdx >= 0 && updated[lastIdx].sender === "assistant") {
+                  if (lastIdx >= 0 && updated[lastIdx].id === initialAssistantMessage.id) {
                     updated[lastIdx] = {
                       ...updated[lastIdx],
                       text: currentAccumulation,
@@ -365,6 +362,7 @@ export default function MascotAssistantDialog({
                 finalSources = data.sources;
               }
               if (data.done) {
+                completed = true;
                 break;
               }
             } catch {
@@ -374,9 +372,14 @@ export default function MascotAssistantDialog({
         }
       }
 
+      if (voiceSignal && (!completed || !streamedText.trim())) throw new Error("Friday returned an incomplete reply. Please retry.");
       finalAssistantText = streamedText || generateLocalFallback(query);
     } catch (err: unknown) {
       const error = err as Error;
+      if (voiceSignal) {
+        finalAssistantText = abortController.signal.aborted ? "(Response cancelled)" : "Friday could not complete the voice reply.";
+        throw error;
+      }
       if (error.name === "AbortError") {
         finalAssistantText = "(Response cancelled)";
       } else {
@@ -385,33 +388,29 @@ export default function MascotAssistantDialog({
         isFallbackResponse = true;
       }
     } finally {
-      setIsStreaming(false);
-      abortControllerRef.current = null;
+      voiceSignal?.removeEventListener("abort", cancelVoice);
+      if (abortControllerRef.current === abortController || (!voiceSignal && !abortControllerRef.current)) {
+        setIsStreaming(false);
+        abortControllerRef.current = null;
 
-      const finalAssistantMessage: Message = {
-        id: generateId("msg"),
-        sender: "assistant",
-        text: finalAssistantText,
-        isStreaming: false,
-        sources: finalSources,
-        isFallback: isFallbackResponse,
-        timestamp: Date.now(),
-      };
+        const finalAssistantMessage: Message = {
+          id: generateId("msg"),
+          sender: "assistant",
+          text: finalAssistantText,
+          isStreaming: false,
+          sources: finalSources,
+          isFallback: isFallbackResponse,
+          timestamp: Date.now(),
+        };
 
-      const completedMessages = [...currentMessagesBeforeStream, finalAssistantMessage];
-      setMessages(completedMessages);
+        const completedMessages = [...currentMessagesBeforeStream, finalAssistantMessage];
+        setMessages(completedMessages);
 
-      // If voice mode is active, Friday speaks response aloud
-      if (voiceAssistantRef.current.isActive && finalAssistantText) {
-        voiceAssistantRef.current.speakResponse(finalAssistantText);
+        inputRef.current?.focus({ preventScroll: true });
       }
-
-      inputRef.current?.focus({ preventScroll: true });
     }
+    return finalAssistantText;
   }
-
-  // Bind send to sendRef for use by voice hook
-  sendRef.current = send;
 
   return (
     <dialog
@@ -471,24 +470,13 @@ export default function MascotAssistantDialog({
         {voiceAssistant.isActive && (
           <VoiceAssistantOverlay
             voiceState={voiceAssistant.voiceState}
-            interimTranscript={voiceAssistant.interimTranscript}
             finalTranscript={voiceAssistant.finalTranscript}
-            latestAssistantText={
-              messages[messages.length - 1]?.sender === "assistant"
-                ? messages[messages.length - 1]?.text
-                : undefined
-            }
             isMuted={voiceAssistant.isMuted}
             errorMessage={voiceAssistant.errorMessage}
-            errorCode={voiceAssistant.errorCode}
-            audioLevel={voiceAssistant.audioLevel}
-            isUserSpeaking={voiceAssistant.isUserSpeaking}
             onInterrupt={voiceAssistant.interrupt}
             onToggleMute={voiceAssistant.toggleMute}
             onExit={voiceAssistant.stopVoiceMode}
             onRetry={voiceAssistant.retryListening}
-            onStopAndSubmit={voiceAssistant.stopRecordingAndSubmit}
-            onSendVoiceTextQuery={voiceAssistant.sendVoiceTextQuery}
           />
         )}
 

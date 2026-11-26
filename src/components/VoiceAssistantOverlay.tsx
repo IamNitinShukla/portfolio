@@ -6,20 +6,13 @@ import type { VoiceState } from "@/lib/useVoiceAssistant";
 
 interface VoiceAssistantOverlayProps {
   voiceState: VoiceState;
-  interimTranscript: string;
   finalTranscript: string;
-  latestAssistantText?: string;
   isMuted: boolean;
   errorMessage: string | null;
-  errorCode?: string | null;
-  audioLevel?: number;
-  isUserSpeaking?: boolean;
   onInterrupt?: () => void;
   onToggleMute: () => void;
   onExit: () => void;
   onRetry?: () => void;
-  onStopAndSubmit?: () => void;
-  onSendVoiceTextQuery?: (text: string) => void;
 }
 
 /**
@@ -30,12 +23,11 @@ function getMascotAnimationSrc(voiceState: VoiceState, isMuted: boolean): string
   switch (voiceState) {
     case "speaking":
       return "/mascot/animations/wave.webm";
-    case "processing":
+    case "transcribing":
     case "generating":
-    case "thinking":
       return "/mascot/animations/look-around.webm";
     case "listening":
-    case "capturing_interruption":
+    case "recording":
       return "/mascot/animations/idle.webm";
     case "error":
       return "/mascot/animations/shrug.webm";
@@ -46,31 +38,25 @@ function getMascotAnimationSrc(voiceState: VoiceState, isMuted: boolean): string
 
 export default function VoiceAssistantOverlay({
   voiceState,
-  interimTranscript,
   finalTranscript,
-  latestAssistantText,
   isMuted,
   errorMessage,
-  errorCode,
-  audioLevel = 0,
-  isUserSpeaking = false,
   onInterrupt,
   onToggleMute,
   onExit,
   onRetry,
-  onStopAndSubmit,
-  onSendVoiceTextQuery,
 }: VoiceAssistantOverlayProps) {
+  const isUserSpeaking = voiceState === "recording";
   // Determine primary state headline
   const stateHeadline = isMuted
     ? "Microphone Muted"
-    : voiceState === "listening" || voiceState === "capturing_interruption"
+    : voiceState === "listening" || voiceState === "recording"
     ? isUserSpeaking
       ? "Listening to you..."
       : "Listening..."
-    : voiceState === "processing"
+    : voiceState === "transcribing"
     ? "Processing speech..."
-    : voiceState === "generating" || voiceState === "thinking"
+    : voiceState === "generating"
     ? "Thinking..."
     : voiceState === "speaking"
     ? "Friday is speaking..."
@@ -83,11 +69,9 @@ export default function VoiceAssistantOverlay({
     ? "Tap the microphone below to unmute"
     : voiceState === "speaking"
     ? "Tap anywhere to interrupt"
-    : interimTranscript
-    ? `"${interimTranscript}"`
-    : (voiceState === "generating" || voiceState === "processing" || voiceState === "thinking") && finalTranscript
+    : (voiceState === "generating" || voiceState === "transcribing") && finalTranscript
     ? `"${finalTranscript}"`
-    : voiceState === "listening"
+    : voiceState === "listening" || isUserSpeaking
     ? isUserSpeaking
       ? "Capturing your question..."
       : "Speak now, Friday is listening"
@@ -119,7 +103,7 @@ export default function VoiceAssistantOverlay({
                 ? "bg-neutral-600"
                 : isSpeaking
                 ? "animate-pulse bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]"
-                : voiceState === "generating" || voiceState === "processing" || voiceState === "thinking"
+                : voiceState === "generating" || voiceState === "transcribing"
                 ? "animate-pulse bg-red-400"
                 : isUserSpeaking
                 ? "animate-ping bg-red-500"
@@ -179,7 +163,7 @@ export default function VoiceAssistantOverlay({
                     background:
                       "radial-gradient(circle, rgba(239,68,68,0.6) 0%, rgba(220,38,38,0.3) 45%, transparent 70%)",
                   }
-                : voiceState === "generating" || voiceState === "processing" || voiceState === "thinking"
+                : voiceState === "generating" || voiceState === "transcribing"
                 ? {
                     scale: [0.95, 1.18, 0.95],
                     opacity: [0.4, 0.7, 0.4],
@@ -203,7 +187,7 @@ export default function VoiceAssistantOverlay({
             transition={
               isSpeaking
                 ? { duration: 1.6, repeat: Infinity, ease: "easeInOut" }
-                : voiceState === "thinking"
+                : voiceState === "generating"
                 ? { duration: 2.8, repeat: Infinity, ease: "easeInOut" }
                 : isUserSpeaking
                 ? { duration: 1.1, repeat: Infinity, ease: "easeInOut" }
@@ -220,7 +204,7 @@ export default function VoiceAssistantOverlay({
                 ? { scale: [1, 1.25, 1], opacity: [0.6, 0.1, 0.6] }
                 : isUserSpeaking
                 ? { scale: [1, 1.2, 1], opacity: [0.5, 0.12, 0.5] }
-                : voiceState === "thinking"
+                : voiceState === "generating"
                 ? { scale: [1, 1.1, 1], opacity: [0.3, 0.1, 0.3] }
                 : { scale: 1, opacity: 0.15 }
             }
@@ -258,6 +242,7 @@ export default function VoiceAssistantOverlay({
           <p className="mt-1 text-xs text-neutral-400 line-clamp-2 max-w-xs transition-opacity duration-300">
             {stateSubtitle}
           </p>
+          {voiceState === "error" && <button type="button" className="mt-2 underline" onClick={onRetry}>Retry voice</button>}
         </div>
       </div>
 
