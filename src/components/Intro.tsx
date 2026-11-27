@@ -38,22 +38,27 @@ export default function Intro({ onComplete }: IntroProps) {
     let animationFrameId: number;
     let isCancelled = false;
 
-    const handleFinish = () => {
+    const handleFinish = (immediate = false) => {
       if (isCancelled) return;
       isCancelled = true;
       cancelAnimationFrame(animationFrameId);
       setIsFinishing(true);
       document.body.style.overflow = originalOverflow;
-      setTimeout(() => {
+      if (immediate) {
         onComplete();
-      }, 200);
+      } else {
+        // If called early via skip key, provide a brief 150ms fade
+        setTimeout(() => {
+          onComplete();
+        }, 150);
+      }
     };
 
-    // Keyboard shortcut to skip intro
+    // Keyboard shortcut to skip intro immediately
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape" || e.key === "Enter" || e.code === "Space") {
         e.preventDefault();
-        handleFinish();
+        handleFinish(false);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -84,18 +89,19 @@ export default function Intro({ onComplete }: IntroProps) {
       if (startTime === null) startTime = now;
       const elapsed = now - startTime;
 
-      // Phase 1: Progressive Natural Handwriting (0 - 1800ms)
-      // Stroke 0: 0 - 320ms (h entry loop & stem)
-      // Stroke 1: 320 - 1800ms (h arch, e, l, l, o, flourish tail)
+      // Phase 1: Progressive Natural Handwriting (0 - 2300ms)
+      // Stroke 0: 0 - 400ms (h entry loop & stem)
+      // Stroke 1: 400 - 2300ms (h arch, e, l, l, o, flourish tail)
       if (p0 && p1) {
-        if (elapsed <= 320) {
-          const p = Math.min(1, Math.max(0, elapsed / 320));
-          const ease = 1 - Math.pow(1 - p, 1.3);
+        if (elapsed <= 400) {
+          const p = Math.min(1, Math.max(0, elapsed / 400));
+          const ease = 1 - Math.pow(1 - p, 1.25);
           p0.style.strokeDashoffset = `${len0 * (1 - ease)}`;
           p1.style.strokeDashoffset = `${len1}`;
-        } else if (elapsed <= 1800) {
+        } else if (elapsed <= 2300) {
           p0.style.strokeDashoffset = "0";
-          const p = Math.min(1, Math.max(0, (elapsed - 320) / (1800 - 320)));
+          const p = Math.min(1, Math.max(0, (elapsed - 400) / (2300 - 400)));
+          // Smooth, deliberate handwriting easing
           const ease = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
           p1.style.strokeDashoffset = `${len1 * (1 - ease)}`;
         } else {
@@ -104,17 +110,17 @@ export default function Intro({ onComplete }: IntroProps) {
         }
       }
 
-      // Phase 2: Completed Hold (1800 - 2200ms)
-      // Path fully visible, mask inactive
+      // Phase 2: Completed Word Hold (2300 - 3000ms)
+      // Fully visible, mask inactive
 
-      // Phase 3: Progressive Erasing from Left to Right (2200 - 2800ms)
-      // Soft feathered gradient mask moves from left (h) to right (tail flourish vanishing last)
+      // Phase 3: Progressive Erasing from Left to Right (3000 - 3700ms)
+      // Soft feathered gradient mask moves from left (h) to right (tail flourish vanishing last at 3700ms)
       if (stop1 && stop2) {
-        if (elapsed < 2200) {
+        if (elapsed < 3000) {
           stop1.setAttribute("offset", "0%");
           stop2.setAttribute("offset", "0%");
-        } else if (elapsed <= 2800) {
-          const eraseP = (elapsed - 2200) / 600; // 0 to 1
+        } else if (elapsed <= 3700) {
+          const eraseP = (elapsed - 3000) / 700; // 0 to 1
           const start = -8 + eraseP * (98 - (-8));
           const end = start + 10;
           stop1.setAttribute("offset", `${Math.max(0, Math.min(100, start))}%`);
@@ -125,21 +131,21 @@ export default function Intro({ onComplete }: IntroProps) {
         }
       }
 
-      // Phase 4: Smooth Overlay Opacity Fade (2800 - 3000ms)
+      // Phase 4: Smooth Overlay Opacity Fade / Homepage Reveal (3700 - 4000ms)
       if (container) {
-        if (elapsed <= 2800) {
+        if (elapsed <= 3700) {
           container.style.opacity = "1";
-        } else if (elapsed <= 3000) {
-          const fadeProgress = (elapsed - 2800) / 200;
+        } else if (elapsed <= 4000) {
+          const fadeProgress = (elapsed - 3700) / 300;
           container.style.opacity = `${Math.max(0, 1 - fadeProgress)}`;
         } else {
           container.style.opacity = "0";
         }
       }
 
-      // End of intro sequence at exactly 3000ms
-      if (elapsed >= 3000) {
-        handleFinish();
+      // End of intro sequence at exactly 4000ms: finish immediately with zero delay
+      if (elapsed >= 4000) {
+        handleFinish(true);
       } else {
         animationFrameId = requestAnimationFrame(tick);
       }
