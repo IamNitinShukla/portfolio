@@ -1,6 +1,5 @@
 "use client";
 
-import { motion } from "framer-motion";
 import { useId, useState, useRef, useEffect } from "react";
 import MascotAssistantDialog from "@/components/MascotAssistantDialog";
 import styles from "./MascotInteraction.module.css";
@@ -25,7 +24,21 @@ export default function PortfolioMascot({
   const clickTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastTapRef = useRef<number>(0);
   const dialogId = useId();
-  const { videoRef, isLoaded, prefersReduced, videoProps, currentAnimation } = controller;
+  const {
+    activeSlot,
+    videoRef,
+    isLoaded,
+    prefersReduced,
+    slot0,
+    slot1,
+    videoRef0,
+    videoRef1,
+    handlePlaying0,
+    handlePlaying1,
+    handleEnded0,
+    handleEnded1,
+    handleLoadedData,
+  } = controller;
 
   // Reliably hide the mascot while the user is inside the 4-stage pinned Philosophy section
   useEffect(() => {
@@ -115,7 +128,7 @@ export default function PortfolioMascot({
   return (
     <>
       <div
-        className={`pointer-events-none fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-[max(1rem,env(safe-area-inset-right))] z-40 w-24 max-w-[25vw] sm:w-32 lg:bottom-[max(6px,env(safe-area-inset-bottom))] lg:right-[max(2px,env(safe-area-inset-right))] lg:w-44 transition-all duration-300 ease-out ${
+        className={`pointer-events-none fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-[max(1rem,env(safe-area-inset-right))] z-40 w-24 max-w-[25vw] sm:w-32 lg:bottom-[max(6px,env(safe-area-inset-bottom))] lg:right-[max(2px,env(safe-area-inset-right))] lg:w-44 aspect-square transition-all duration-300 ease-out ${
           isHiddenByPhilosophy
             ? "opacity-0 pointer-events-none translate-y-3 invisible"
             : "opacity-100 visible translate-y-0"
@@ -137,19 +150,44 @@ export default function PortfolioMascot({
           onDoubleClick={handleDoubleClick}
           onTouchEnd={handleTouchEnd}
         />
-        {/* Exactly one original red robot mascot video element */}
-        <motion.video
-          {...videoProps}
-          ref={videoRef}
+
+        {/* Seamless Double-Buffered Mascot Video Element 0 */}
+        <video
+          ref={videoRef0}
+          src={slot0.src}
+          autoPlay={!prefersReduced}
+          muted
+          playsInline
           aria-hidden="true"
           tabIndex={-1}
           preload="auto"
-          data-animation={currentAnimation}
-          className="pointer-events-none relative block h-auto w-full select-none bg-transparent"
-          initial={false}
-          animate={{ opacity: isLoaded ? 1 : 0, y: isLoaded || prefersReduced ? 0 : 8 }}
-          transition={{ duration: prefersReduced ? 0 : 0.35, ease: "easeOut" }}
+          onEnded={handleEnded0}
+          onPlaying={handlePlaying0}
+          onLoadedData={handleLoadedData}
+          className={`pointer-events-none absolute inset-0 block h-full w-full select-none bg-transparent transition-opacity duration-100 ease-out ${
+            activeSlot === 0 ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"
+          }`}
         />
+
+        {/* Seamless Double-Buffered Mascot Video Element 1 */}
+        {slot1.src ? (
+          <video
+            ref={videoRef1}
+            src={slot1.src}
+            autoPlay={!prefersReduced}
+            muted
+            playsInline
+            aria-hidden="true"
+            tabIndex={-1}
+            preload="auto"
+            onEnded={handleEnded1}
+            onPlaying={handlePlaying1}
+            onLoadedData={handleLoadedData}
+            className={`pointer-events-none absolute inset-0 block h-full w-full select-none bg-transparent transition-opacity duration-100 ease-out ${
+              activeSlot === 1 ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"
+            }`}
+          />
+        ) : null}
       </div>
       {assistantOpen && (
         <MascotAssistantDialog
