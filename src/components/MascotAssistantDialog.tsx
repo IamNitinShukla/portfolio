@@ -169,6 +169,15 @@ function renderFormattedText(text: string) {
   });
 }
 
+function checkIsMobile(): boolean {
+  if (typeof window === "undefined") return false;
+  return (
+    window.innerWidth < 768 ||
+    window.matchMedia("(pointer: coarse)").matches ||
+    /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+  );
+}
+
 export default function MascotAssistantDialog({
   id,
   onDismiss,
@@ -214,6 +223,8 @@ export default function MascotAssistantDialog({
     const overflow = root.style.overflow;
     root.style.overflow = "hidden";
 
+    const isMobile = checkIsMobile();
+
     try {
       if (!dialog.open) {
         dialog.showModal();
@@ -222,7 +233,33 @@ export default function MascotAssistantDialog({
       dialog.setAttribute("open", "");
     }
 
+    let mobileTimer: ReturnType<typeof setTimeout> | null = null;
+    if (isMobile) {
+      // Prevent mobile virtual keyboard from automatically popping up on dialog open
+      if (
+        document.activeElement instanceof HTMLInputElement ||
+        document.activeElement instanceof HTMLTextAreaElement
+      ) {
+        document.activeElement.blur();
+      }
+      dialog.focus({ preventScroll: true });
+
+      // Guard against delayed browser autofocus on mobile touch devices
+      mobileTimer = setTimeout(() => {
+        if (
+          document.activeElement instanceof HTMLInputElement ||
+          document.activeElement instanceof HTMLTextAreaElement
+        ) {
+          document.activeElement.blur();
+          dialog.focus({ preventScroll: true });
+        }
+      }, 50);
+    }
+
     return () => {
+      if (mobileTimer) {
+        clearTimeout(mobileTimer);
+      }
       // Abort active stream and voice on unmount
       abortControllerRef.current?.abort();
       try {
@@ -304,7 +341,9 @@ export default function MascotAssistantDialog({
       { id: generateId("msg"), sender: "assistant", text: welcomeBody },
     ]);
     setDraft("");
-    inputRef.current?.focus({ preventScroll: true });
+    if (!checkIsMobile()) {
+      inputRef.current?.focus({ preventScroll: true });
+    }
   }
 
   async function send(text: string, directPrompt?: string, voiceSignal?: AbortSignal) {
@@ -452,7 +491,9 @@ export default function MascotAssistantDialog({
         const completedMessages = [...currentMessagesBeforeStream, finalAssistantMessage];
         setMessages(completedMessages);
 
-        inputRef.current?.focus({ preventScroll: true });
+        if (!checkIsMobile()) {
+          inputRef.current?.focus({ preventScroll: true });
+        }
       }
     }
     return finalAssistantText;
@@ -462,6 +503,7 @@ export default function MascotAssistantDialog({
     <dialog
       ref={dialogRef}
       id={id}
+      tabIndex={-1}
       aria-labelledby={`${id}-title`}
       className={`${styles.dialog} ${theme === "dark" ? styles.dark : styles.light}`}
       data-theme={theme}

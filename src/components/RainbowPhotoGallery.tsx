@@ -59,9 +59,22 @@ export default function RainbowPhotoGallery({
     });
   }, [images]);
 
-  // Clean up timers on unmount
+  // Clean up timers on unmount and listen for page scrolls to abort any accidental holds
   useEffect(() => {
+    const handleWindowScroll = () => {
+      if (holdTimerRef.current) {
+        clearTimeout(holdTimerRef.current);
+        holdTimerRef.current = null;
+      }
+      isVerticalScrollRef.current = true;
+      isSwipingRef.current = false;
+      setIsPressHolding(false);
+      setDragOffset(0);
+    };
+
+    window.addEventListener("scroll", handleWindowScroll, { passive: true });
     return () => {
+      window.removeEventListener("scroll", handleWindowScroll);
       if (leaveTimer.current) {
         clearTimeout(leaveTimer.current);
       }
@@ -235,7 +248,7 @@ export default function RainbowPhotoGallery({
     hasDragged.current = false;
   };
 
-  // Mobile Touch Swipe Handlers (Seamlessly navigate within the rainbow fan formation)
+  // Mobile Touch Swipe Handlers (Dedicated to deliberate tap/hold and navigation ONLY when already open)
   const handleTouchStart = (e: React.TouchEvent) => {
     if (e.touches.length !== 1) return;
     const touch = e.touches[0];
@@ -249,46 +262,50 @@ export default function RainbowPhotoGallery({
     isVerticalScrollRef.current = false;
     setDragOffset(0);
 
-    // Press-and-hold finger: Spreads cards into curved rainbow formation
+    // Deliberate press-and-hold: finger must stay completely still without scrolling
     if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
     holdTimerRef.current = setTimeout(() => {
-      hasTriggeredHold.current = true;
-      setIsPressHolding(true);
-    }, 220);
+      if (!isVerticalScrollRef.current) {
+        hasTriggeredHold.current = true;
+        setIsPressHolding(true);
+      }
+    }, 450);
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (!touchStartRef.current || isVerticalScrollRef.current) return;
+    if (!touchStartRef.current) return;
     const touch = e.touches[0];
     const dx = touch.clientX - touchStartRef.current.x;
     const dy = touch.clientY - touchStartRef.current.y;
+    const distance = Math.hypot(dx, dy);
 
-    // Detect direction intent
+    // If finger moves more than 6px in any direction, it is not a stationary press-and-hold
+    if (distance > 6 && holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+
+    // If vertical page scrolling is active, never intercept
+    if (isVerticalScrollRef.current) return;
+
+    // Detect gesture intent
     if (!isSwipingRef.current) {
-      // If vertical movement dominates, allow native page scroll completely unhindered
-      if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 8) {
-        if (holdTimerRef.current) {
-          clearTimeout(holdTimerRef.current);
-          holdTimerRef.current = null;
-        }
+      // If vertical movement dominates, dedicated 100% to normal unhindered page scroll
+      if (Math.abs(dy) > 5 && Math.abs(dy) >= Math.abs(dx)) {
         isVerticalScrollRef.current = true;
         setIsPressHolding(false);
+        setDragOffset(0);
         return;
       }
-      // If horizontal movement dominates, engage horizontal swipe
-      if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 10) {
-        if (holdTimerRef.current) {
-          clearTimeout(holdTimerRef.current);
-          holdTimerRef.current = null;
-        }
+
+      // Horizontal swiping: ONLY engage when the rainbow gallery is ALREADY open
+      const isAlreadyOpen = isMobileExpanded || isPressHolding;
+      if (isAlreadyOpen && Math.abs(dx) > Math.abs(dy) * 1.2 && Math.abs(dx) > 10) {
         isSwipingRef.current = true;
-        // Reveal rainbow cards while swiping
-        setIsPressHolding(true);
       }
     }
 
-    if (isSwipingRef.current) {
-      // Subtle responsive tactile feedback during finger drag
+    if (isSwipingRef.current && (isMobileExpanded || isPressHolding)) {
       setDragOffset(dx);
     }
   };
@@ -315,17 +332,18 @@ export default function RainbowPhotoGallery({
     const dy = touch ? touch.clientY - start.y : 0;
     const duration = Date.now() - start.time;
 
+    // Horizontal swipe between photos ONLY when gallery was already open
     if (isSwipingRef.current) {
       const isQuickFlick = duration < 320 && Math.abs(dx) > 25;
       const isDragSwipe = Math.abs(dx) >= 35;
 
       if ((isQuickFlick || isDragSwipe) && Math.abs(dx) > Math.abs(dy) * 1.1) {
         if (dx < 0) {
-          // Swiped left -> move to Next photograph in rainbow formation
+          // Swiped left -> move to Next photograph
           const next = (activeIndex + 1) % total;
           commitPhoto(next);
         } else {
-          // Swiped right -> move to Previous photograph in rainbow formation
+          // Swiped right -> move to Previous photograph
           const prev = (activeIndex - 1 + total) % total;
           commitPhoto(prev);
         }
@@ -336,13 +354,18 @@ export default function RainbowPhotoGallery({
       return;
     }
 
-    // Tap main photo: Opens and keeps rainbow gallery open. Tap again closes it.
-    const isCleanTap = !hasTriggeredHold.current && duration < 250 && Math.abs(dx) < 12 && Math.abs(dy) < 12;
+    // Deliberate tap on photo: Opens and keeps rainbow gallery open. Tap again closes it.
+    const isCleanTap =
+      !hasTriggeredHold.current &&
+      duration < 280 &&
+      Math.abs(dx) < 8 &&
+      Math.abs(dy) < 8;
+
     if (isCleanTap) {
-      setIsMobileExpanded(prev => !prev);
+      setIsMobileExpanded((prev) => !prev);
     }
 
-    // Releasing after press-and-hold returns to single-photo unless explicitly activated by tap
+    // Releasing after press-and-hold returns to single-photo unless toggled by tap
     setIsPressHolding(false);
     setDragOffset(0);
   };
