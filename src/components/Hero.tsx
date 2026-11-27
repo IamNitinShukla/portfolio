@@ -175,7 +175,7 @@ export default function Hero({ onOpenContact }: HeroProps = {}) {
     <section
       ref={heroRef}
       id="hero"
-      className="relative flex flex-col justify-center pt-[110px] pb-12 sm:pt-28 sm:pb-14 lg:pt-36 lg:pb-20 border-b border-border overflow-hidden transition-colors"
+      className="relative flex flex-col justify-center pt-[105px] pb-10 sm:pt-24 sm:pb-12 lg:pt-28 lg:pb-16 xl:pt-36 xl:pb-20 border-b border-border overflow-hidden transition-colors"
     >
       {/* 1. Default Ambient Dual-Spotlight Layer (Upper-Left + Lower-Right softly illuminating background dots before movement or when idle) */}
       <div
@@ -221,20 +221,20 @@ export default function Hero({ onOpenContact }: HeroProps = {}) {
             </p>
 
             {/* Editorial Main Headline (Responsive fluid scale, spacious mobile leading, natural wrap, zero clipping) */}
-            <h1 className="animate-fade-in-up delay-100 text-[clamp(2rem,8.2vw,2.65rem)] sm:text-5xl md:text-6xl lg:text-[5.2rem] font-extrabold tracking-tight sm:tracking-[-0.04em] text-primary leading-[1.20] sm:leading-[1.04] lg:leading-[0.98] mb-6 sm:mb-8 lg:mb-10 w-full break-words">
+            <h1 className="animate-fade-in-up delay-100 text-[clamp(2rem,8vw,2.65rem)] sm:text-5xl md:text-[3.5rem] lg:text-[clamp(2.75rem,3.8vw,4.25rem)] xl:text-[4.75rem] 2xl:text-[5.2rem] font-extrabold tracking-tight sm:tracking-[-0.035em] text-primary leading-[1.18] sm:leading-[1.05] lg:leading-[1.02] xl:leading-[0.98] mb-6 sm:mb-7 lg:mb-8 w-full break-words">
               {portfolioData.personal.headlineLead}{" "}
-              <br className="hidden sm:inline" />
+              <br className="hidden xl:inline" />
               <span className="text-accent">
                 {portfolioData.personal.headlineAccent}
               </span>{" "}
-              <br className="hidden sm:inline" />
+              <br className="hidden xl:inline" />
               <span>
                 {portfolioData.personal.headlineEnd}
               </span>
             </h1>
 
             {/* CTA Buttons & Social Links Row */}
-            <div className="animate-fade-in-up delay-200 flex flex-col sm:flex-row items-stretch sm:items-center gap-5 sm:gap-3.5 w-full sm:w-auto">
+            <div className="animate-fade-in-up delay-200 flex flex-wrap items-center gap-4 sm:gap-3.5 w-full sm:w-auto">
               
               {/* Responsive Side-by-Side CTAs (Classy, deliberate button widths, no awkward row stretching) */}
               <div className="flex flex-wrap items-center gap-3 sm:gap-3.5 w-auto">
@@ -302,8 +302,8 @@ export default function Hero({ onOpenContact }: HeroProps = {}) {
           </div>
 
           {/* Right Column: Digital Developer ID Badge Card / Titanium Device */}
-          <div className="lg:col-span-5 flex justify-center lg:justify-end mt-3 sm:mt-10 lg:mt-0 w-full">
-            <div className="animate-fade-in-up delay-200 relative w-full max-w-full sm:max-w-[390px] group">
+          <div className="lg:col-span-5 flex justify-center lg:justify-end mt-4 sm:mt-8 lg:mt-0 w-full">
+            <div className="animate-fade-in-up delay-200 relative w-full max-w-full sm:max-w-[360px] md:max-w-[380px] lg:max-w-[350px] xl:max-w-[390px] group">
               {/* Extremely subtle ambient lighting spread around the card edges */}
               <div
                 className="pointer-events-none absolute -inset-1 sm:-inset-1.5 rounded-[34px] sm:rounded-[38px] bg-accent/[0.045] dark:bg-accent/[0.04] blur-2xl opacity-75 group-hover:opacity-100 transition-opacity duration-700 -z-10"

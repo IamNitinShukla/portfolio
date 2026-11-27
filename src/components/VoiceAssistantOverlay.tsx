@@ -1,19 +1,22 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { MessageSquare, Mic, MicOff, X } from "lucide-react";
-import type { VoiceState } from "@/lib/useVoiceAssistant";
+import { MessageSquare, Mic, MicOff, Volume2, X } from "lucide-react";
+import type { VoiceErrorCategory, VoiceState } from "@/lib/useVoiceAssistant";
 
 interface VoiceAssistantOverlayProps {
   voiceState: VoiceState;
   finalTranscript: string;
   isMuted: boolean;
   errorMessage: string | null;
+  errorCategory?: VoiceErrorCategory;
+  lastAssistantReply?: string;
   onInterrupt?: () => void;
   onToggleMute: () => void;
   onExit: () => void;
   onClose?: () => void;
   onRetry?: () => void;
+  onRetrySpeech?: () => void;
   audioLevel?: number;
 }
 
@@ -43,11 +46,14 @@ export default function VoiceAssistantOverlay({
   finalTranscript,
   isMuted,
   errorMessage,
+  errorCategory,
+  lastAssistantReply,
   onInterrupt,
   onToggleMute,
   onExit,
   onClose,
   onRetry,
+  onRetrySpeech,
   audioLevel,
 }: VoiceAssistantOverlayProps) {
   const isUserSpeaking = voiceState === "recording";
@@ -65,7 +71,13 @@ export default function VoiceAssistantOverlay({
     : voiceState === "speaking"
     ? "Friday is speaking..."
     : voiceState === "error"
-    ? "Microphone Notice"
+    ? errorCategory === "speech_playback_error"
+      ? "Speech Playback Notice"
+      : errorCategory === "microphone_permission"
+      ? "Microphone Permission Required"
+      : errorCategory === "microphone_unavailable"
+      ? "Microphone Not Detected"
+      : "Audio Notice"
     : "Voice Mode Ready";
 
   // Determine secondary contextual subtitle
@@ -79,6 +91,8 @@ export default function VoiceAssistantOverlay({
     ? isUserSpeaking
       ? "Capturing your question..."
       : "Speak now, Friday is listening"
+    : voiceState === "error" && errorCategory === "speech_playback_error"
+    ? "Speech playback failed on this device, but Friday's answer is ready below."
     : errorMessage || "Speak naturally with Friday";
 
   const mascotSrc = getMascotAnimationSrc(voiceState, isMuted);
@@ -226,6 +240,13 @@ export default function VoiceAssistantOverlay({
             className={`relative z-10 flex items-center justify-center cursor-pointer transition-transform duration-200 active:scale-95`}
             title={isSpeaking ? "Tap to interrupt Friday" : "Friday AI Mascot"}
           >
+            {/* Continuous static base layer prevents blank flashes between animations or during decoder warmup */}
+            <img
+              src="/images/red-robot-mascot.png"
+              alt="Friday Robot Mascot"
+              aria-hidden="true"
+              className="absolute inset-0 h-44 w-44 sm:h-52 sm:w-52 object-contain pointer-events-none drop-shadow-[0_12px_32px_rgba(239,68,68,0.28)]"
+            />
             <video
               key={mascotSrc}
               src={mascotSrc}
@@ -234,20 +255,64 @@ export default function VoiceAssistantOverlay({
               muted
               playsInline
               aria-hidden="true"
-              className="h-44 w-44 sm:h-52 sm:w-52 object-contain pointer-events-none drop-shadow-[0_12px_32px_rgba(239,68,68,0.28)]"
+              className="relative z-10 h-44 w-44 sm:h-52 sm:w-52 object-contain pointer-events-none drop-shadow-[0_12px_32px_rgba(239,68,68,0.28)]"
             />
           </div>
         </div>
 
         {/* Subtle Status Text and Transcript Subtitle Below Mascot */}
-        <div className="mt-5 flex flex-col items-center justify-center text-center px-4">
+        <div className="mt-5 flex flex-col items-center justify-center text-center px-4 max-w-sm w-full">
           <p className="text-base font-medium tracking-wide text-white">
             {stateHeadline}
           </p>
           <p className="mt-1 text-xs text-neutral-400 line-clamp-2 max-w-xs transition-opacity duration-300">
             {stateSubtitle}
           </p>
-          {voiceState === "error" && <button type="button" className="mt-2 underline" onClick={onRetry}>Retry voice</button>}
+
+          {/* Fallback readable card for speech playback errors */}
+          {voiceState === "error" && errorCategory === "speech_playback_error" && lastAssistantReply && (
+            <div className="mt-3 w-full rounded-xl border border-white/10 bg-white/5 p-3 text-left">
+              <p className="text-[10px] font-mono uppercase tracking-wider text-neutral-400 mb-1">
+                Friday&apos;s Response:
+              </p>
+              <p className="text-xs text-neutral-200 line-clamp-4 leading-relaxed">
+                {lastAssistantReply}
+              </p>
+            </div>
+          )}
+
+          {/* Action buttons during error state */}
+          {voiceState === "error" && (
+            <div className="mt-3 flex items-center gap-2">
+              {errorCategory === "speech_playback_error" && onRetrySpeech ? (
+                <button
+                  type="button"
+                  onClick={onRetrySpeech}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-400 hover:bg-red-500/20 hover:text-red-300 transition-colors"
+                >
+                  <Volume2 size={13} />
+                  <span>Replay Audio</span>
+                </button>
+              ) : onRetry ? (
+                <button
+                  type="button"
+                  onClick={onRetry}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-400 hover:bg-red-500/20 hover:text-red-300 transition-colors"
+                >
+                  <span>Retry Audio</span>
+                </button>
+              ) : null}
+
+              <button
+                type="button"
+                onClick={onExit}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-neutral-300 hover:bg-white/10 hover:text-white transition-colors"
+              >
+                <MessageSquare size={13} />
+                <span>Text Chat</span>
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

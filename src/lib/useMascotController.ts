@@ -52,6 +52,7 @@ export function useMascotController(initialAnimation: MascotAnimationName = DEFA
   const startedTurn = useRef<typeof turn | null>(null);
   const endedTurn = useRef<typeof turn | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [isVideoReady, setIsVideoReady] = useState(false);
   const [hasError, setHasError] = useState(false);
   const requested = useRef<MascotAnimationName | null>(null);
   const { started, next } = useMascotBehaviour();
@@ -59,7 +60,7 @@ export function useMascotController(initialAnimation: MascotAnimationName = DEFA
 
   useEffect(() => {
     const video = videoRef.current;
-    if (!video || prefersReduced === null || hasError) return;
+    if (!video || prefersReduced === null) return;
     let disposed = false;
     let advancing = false;
     let failed = Boolean(video.error);
@@ -72,17 +73,38 @@ export function useMascotController(initialAnimation: MascotAnimationName = DEFA
       if (choice.name) {
         advancing = true;
         requested.current = null;
+        setIsVideoReady(false);
         setTurn({ name: choice.name });
       } else if (Number.isFinite(choice.retryAfter)) {
         if (retry === undefined) {
-          retry = window.setTimeout(() => { retry = undefined; advance(); }, choice.retryAfter);
+          retry = window.setTimeout(() => { retry = undefined; advance(); }, Math.max(1000, choice.retryAfter));
         }
       } else {
-        setHasError(true);
+        // Fallback to default idle rather than permanent brick
+        setTurn({ name: DEFAULT_MASCOT_ANIMATION });
       }
     }
 
-    function onFailure() {
+    function onFailure(err?: unknown) {
+      // Check if failure is due to browser autoplay policy (NotAllowedError / AbortError)
+      const isAutoplayBlock = err instanceof DOMException && (err.name === "NotAllowedError" || err.name === "AbortError");
+      if (isAutoplayBlock) {
+        // Autoplay temporarily blocked (e.g. mobile low-power or no user gesture yet).
+        // Do NOT mark clip as permanently broken. Listen for first user gesture to resume.
+        const resumeOnInteraction = () => {
+          window.removeEventListener("pointerdown", resumeOnInteraction);
+          window.removeEventListener("touchstart", resumeOnInteraction);
+          window.removeEventListener("scroll", resumeOnInteraction);
+          if (!disposed && videoRef.current) {
+            void videoRef.current.play().catch(() => {});
+          }
+        };
+        window.addEventListener("pointerdown", resumeOnInteraction, { once: true, passive: true });
+        window.addEventListener("touchstart", resumeOnInteraction, { once: true, passive: true });
+        window.addEventListener("scroll", resumeOnInteraction, { once: true, passive: true });
+        return;
+      }
+
       failed = true;
       advance();
     }
@@ -99,24 +121,28 @@ export function useMascotController(initialAnimation: MascotAnimationName = DEFA
       } else if (failed || endedTurn.current === turn) {
         advance();
       } else {
-        void video!.play().catch(() => {
-          if (!disposed && attempt === playAttempt) onFailure();
-        });
+        const playPromise = video!.play();
+        if (playPromise !== undefined) {
+          playPromise.catch((err) => {
+            if (!disposed && attempt === playAttempt) onFailure(err);
+          });
+        }
       }
     }
 
     video.addEventListener("ended", onEnded);
-    video.addEventListener("error", onFailure);
+    video.addEventListener("error", () => onFailure());
     document.addEventListener("visibilitychange", syncPlayback);
     syncPlayback();
+
     return () => {
       disposed = true;
       window.clearTimeout(retry);
       document.removeEventListener("visibilitychange", syncPlayback);
       video.removeEventListener("ended", onEnded);
-      video.removeEventListener("error", onFailure);
+      video.removeEventListener("error", () => onFailure());
     };
-  }, [turn, prefersReduced, hasError, next]);
+  }, [turn, prefersReduced, next]);
 
   const playAnimation = useCallback((name: MascotAnimationName) => {
     if (!videoRef.current || requested.current || getReducedMotion() || !isMascotAnimation(name)
@@ -146,6 +172,7 @@ export function useMascotController(initialAnimation: MascotAnimationName = DEFA
     currentAnimation: turn.name,
     videoRef,
     isLoaded,
+    isVideoReady,
     hasError,
     prefersReduced,
     videoProps: {
@@ -154,12 +181,19 @@ export function useMascotController(initialAnimation: MascotAnimationName = DEFA
       muted: true,
       loop: MASCOT_ANIMATIONS[turn.name].playback === "loop",
       playsInline: true,
-      onLoadedData: () => setIsLoaded(true),
+      onLoadedData: () => {
+        setIsLoaded(true);
+      },
       onPlaying: () => {
+        setIsLoaded(true);
+        setIsVideoReady(true);
         if (startedTurn.current !== turn) {
           startedTurn.current = turn;
           started(turn.name);
         }
+      },
+      onError: () => {
+        setIsVideoReady(false);
       },
     },
   };

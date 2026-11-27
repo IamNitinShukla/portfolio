@@ -14,6 +14,17 @@ export function cleanTextForSpeech(text: string): string {
 }
 
 export type VoiceState = "idle" | "listening" | "recording" | "transcribing" | "generating" | "speaking" | "error";
+export type MicStatus = "uninitialized" | "requesting" | "ready" | "listening" | "recording" | "denied" | "unavailable" | "error";
+export type PlaybackStatus = "idle" | "speaking" | "completed" | "failed" | "unsupported";
+export type VoiceErrorCategory =
+  | "microphone_permission"
+  | "microphone_unavailable"
+  | "microphone_error"
+  | "transcription_error"
+  | "generation_error"
+  | "speech_playback_error"
+  | null;
+
 type SendVoiceMessage = (query: string, signal: AbortSignal) => Promise<string>;
 
 interface LocalRecognition {
@@ -42,14 +53,19 @@ export interface VoiceDiagnostics {
   lastTransitionReason: string;
   turnCount: number;
   lastError: string;
+  lastReply: string;
 }
 
-interface VoiceView {
+export interface VoiceView {
   voiceState: VoiceState;
   isMuted: boolean;
   finalTranscript: string;
   errorMessage: string;
   audioLevel: number;
+  micStatus: MicStatus;
+  playbackStatus: PlaybackStatus;
+  errorCategory: VoiceErrorCategory;
+  lastAssistantReply: string;
 }
 
 const initialView: VoiceView = {
@@ -58,6 +74,10 @@ const initialView: VoiceView = {
   finalTranscript: "",
   errorMessage: "",
   audioLevel: 0,
+  micStatus: "uninitialized",
+  playbackStatus: "idle",
+  errorCategory: null,
+  lastAssistantReply: "",
 };
 
 const recorderTypes = [
@@ -104,6 +124,7 @@ class VoiceSession {
     lastTransitionReason: "created",
     turnCount: 0,
     lastError: "",
+    lastReply: "",
   };
 
   constructor(
@@ -143,28 +164,36 @@ class VoiceSession {
     this.update({ voiceState: state, ...patch });
   }
 
-  private fail(message: string, reason = "error") {
+  private fail(message: string, reason = "error", category: VoiceErrorCategory = null) {
     this.cancelTurn();
     this.diagnostics.lastError = message;
     if (!this.closed) {
-      this.transition("error", reason, { errorMessage: message, audioLevel: 0 });
+      this.transition("error", reason, {
+        errorMessage: message,
+        errorCategory: category,
+        audioLevel: 0,
+      });
     }
   }
 
   async open() {
     if (this.closed || this.initializing) return;
     this.initializing = true;
+    this.update({ micStatus: "requesting", errorCategory: null, errorMessage: "" });
+
     try {
-      if (typeof window === "undefined" || !window.speechSynthesis) {
-        throw new Error("Speech playback is unavailable in this browser.");
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        try {
+          window.speechSynthesis.getVoices();
+        } catch {}
       }
+
       if (!navigator.mediaDevices?.getUserMedia) {
+        this.update({ micStatus: "unavailable" });
         throw new Error("Microphone access requires a supported browser and HTTPS.");
       }
 
-      window.speechSynthesis.getVoices();
-
-      if (!this.stream || !this.stream.active) {
+      if (!this.stream || !this.stream.active || !this.stream.getAudioTracks().some(t => t.readyState === "live")) {
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: {
             echoCancellation: { ideal: true },
@@ -178,6 +207,7 @@ class VoiceSession {
         }
         this.stream = stream;
         this.diagnostics.micActive = true;
+        this.update({ micStatus: "ready" });
 
         for (const track of stream.getAudioTracks()) {
           track.enabled = !this.muted;
@@ -187,9 +217,16 @@ class VoiceSession {
             this.diagnostics.micActive = false;
             void this.context?.close().catch(() => {});
             this.context = undefined;
-            this.fail("Microphone disconnected. Reconnect it and retry.", "mic_disconnected");
+            this.update({ micStatus: "unavailable" });
+            this.fail(
+              "Microphone disconnected. Please reconnect your audio input and tap retry.",
+              "mic_disconnected",
+              "microphone_unavailable"
+            );
           };
         }
+      } else {
+        this.update({ micStatus: "ready" });
       }
 
       this.mime = typeof MediaRecorder === "undefined"
@@ -198,6 +235,7 @@ class VoiceSession {
 
       if (!this.mime) {
         if (!await this.enableLocalRecognition()) {
+          this.update({ micStatus: "error" });
           throw new Error("This browser has no supported audio recorder or installed English speech recognizer.");
         }
       } else if (!this.analyser) {
@@ -220,13 +258,25 @@ class VoiceSession {
       }
     } catch (error) {
       if (!this.closed) {
+        const isPermission = error instanceof DOMException && (error.name === "NotAllowedError" || error.name === "PermissionDeniedError");
+        const isUnavailable = error instanceof DOMException && (error.name === "NotFoundError" || error.name === "DevicesNotFoundError");
+        const category: VoiceErrorCategory = isPermission
+          ? "microphone_permission"
+          : isUnavailable
+          ? "microphone_unavailable"
+          : "microphone_error";
+
+        this.update({ micStatus: isPermission ? "denied" : isUnavailable ? "unavailable" : "error" });
         this.fail(
-          error instanceof DOMException && error.name === "NotAllowedError"
-            ? "Microphone access was denied. Allow it in the browser and retry."
+          isPermission
+            ? "Microphone access was denied. Please allow microphone permission in your browser settings and tap retry."
+            : isUnavailable
+            ? "No microphone was detected on this device. Please connect an audio input and tap retry."
             : error instanceof Error
             ? error.message
-            : "Microphone setup failed.",
-          "init_failed"
+            : "Microphone setup failed. Check your audio settings and tap retry.",
+          "init_failed",
+          category
         );
       }
     } finally {
@@ -510,7 +560,8 @@ class VoiceSession {
       if (!signal.aborted) {
         this.fail(
           error instanceof Error ? error.message : "Friday could not complete the reply.",
-          "generate_error"
+          "generate_error",
+          "generation_error"
         );
       }
     }
@@ -523,6 +574,26 @@ class VoiceSession {
       return;
     }
 
+    this.diagnostics.lastReply = reply;
+    this.update({ lastAssistantReply: reply, playbackStatus: "speaking" });
+
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+      this.update({ playbackStatus: "unsupported" });
+      this.fail(
+        "Speech playback is unsupported in this browser environment.",
+        "tts_unsupported",
+        "speech_playback_error"
+      );
+      return;
+    }
+
+    try {
+      window.speechSynthesis.cancel();
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+      }
+    } catch {}
+
     const utterance = new SpeechSynthesisUtterance(text);
     this.utterance = utterance;
 
@@ -532,28 +603,39 @@ class VoiceSession {
     }
 
     utterance.lang = "en-US";
-    const voices = window.speechSynthesis.getVoices().filter(voice => voice.lang.startsWith("en"));
-    utterance.voice =
-      voices.find(voice => voice.name.includes("Natural")) ||
-      voices.find(voice => voice.name.includes("Google")) ||
-      voices.find(voice => voice.localService) ||
-      voices[0] ||
-      null;
+    try {
+      const voices = window.speechSynthesis.getVoices().filter(voice => voice.lang.startsWith("en"));
+      utterance.voice =
+        voices.find(voice => voice.name.includes("Natural")) ||
+        voices.find(voice => voice.name.includes("Google")) ||
+        voices.find(voice => voice.localService) ||
+        voices[0] ||
+        null;
+    } catch {}
     utterance.rate = 1.05;
 
     // Safety watchdog in case browser speech fails to start
     this.timer = window.setTimeout(() => {
-      this.fail("Speech playback did not start. Check your audio and retry.", "tts_start_timeout");
+      this.fail(
+        "Speech playback did not start. Check your audio and retry.",
+        "tts_start_timeout",
+        "speech_playback_error"
+      );
     }, 10000);
 
     utterance.onstart = () => {
       if (signal.aborted) return;
       clearTimeout(this.timer);
+      this.update({ playbackStatus: "speaking" });
       this.transition("speaking", "speech_playback_began");
 
       // Watchdog for playback stall
       this.timer = window.setTimeout(() => {
-        this.fail("Speech playback stalled. Please retry.", "tts_stall_timeout");
+        this.fail(
+          "Speech playback stalled. Please retry.",
+          "tts_stall_timeout",
+          "speech_playback_error"
+        );
       }, Math.max(30000, text.length * 200));
     };
 
@@ -562,6 +644,7 @@ class VoiceSession {
       clearTimeout(this.timer);
       this.timer = undefined;
       this.utterance = undefined;
+      this.update({ playbackStatus: "completed" });
       if (typeof window !== "undefined") {
         delete (window as unknown as { __fridayUtterance?: SpeechSynthesisUtterance }).__fridayUtterance;
       }
@@ -580,19 +663,42 @@ class VoiceSession {
       if (typeof window !== "undefined") {
         delete (window as unknown as { __fridayUtterance?: SpeechSynthesisUtterance }).__fridayUtterance;
       }
+      this.update({ playbackStatus: "failed" });
       if (!signal.aborted && e.error !== "canceled" && e.error !== "interrupted") {
-        this.fail("Speech playback failed. Check your audio and retry.", "tts_error");
+        logDiagnostic("TTS", `Speech playback error: ${e.error}`);
+        this.fail(
+          "Speech playback failed. Check your audio and retry.",
+          "tts_error",
+          "speech_playback_error"
+        );
       }
     };
 
-    if (window.speechSynthesis.paused) {
-      window.speechSynthesis.resume();
+    try {
+      window.speechSynthesis.speak(utterance);
+    } catch {
+      this.update({ playbackStatus: "failed" });
+      this.fail(
+        "Speech playback failed. Check your audio and retry.",
+        "tts_error",
+        "speech_playback_error"
+      );
     }
-    window.speechSynthesis.speak(utterance);
+  }
+
+  retrySpeech() {
+    if (this.closed || !this.diagnostics.lastReply) return;
+    logDiagnostic("TTS", "Retrying speech playback on user gesture");
+    this.cancelTurn();
+    this.turn = new AbortController();
+    this.speakResponse(this.diagnostics.lastReply, this.turn.signal);
   }
 
   retry() {
-    if (!this.closed && !this.muted) {
+    if (this.closed) return;
+    if (this.diagnostics.lastError && this.diagnostics.lastReply && this.diagnostics.lastTransitionReason === "tts_error") {
+      this.retrySpeech();
+    } else if (!this.muted) {
       void this.open();
     }
   }
@@ -672,5 +778,6 @@ export function useVoiceAssistant({ onSendMessage }: { onSendMessage: SendVoiceM
     toggleMute: () => session.current?.toggleMute(),
     interrupt: () => session.current?.interrupt(),
     retryListening: () => session.current?.retry(),
+    retrySpeech: () => session.current?.retrySpeech(),
   };
 }

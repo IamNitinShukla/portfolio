@@ -129,7 +129,7 @@ export default function Navigation({ onOpenTerminal, onOpenContact }: Navigation
             transition={{ duration: 0.36, ease: [0.16, 1, 0.3, 1] }}
             className={cn(
               "hidden md:flex items-center",
-              scrolled ? "gap-4 lg:gap-6" : "gap-7 lg:gap-9"
+              scrolled ? "gap-3 lg:gap-6" : "gap-4 lg:gap-7 xl:gap-9"
             )}
           >
             <AnimatePresence mode="popLayout" initial={false}>
@@ -174,7 +174,7 @@ export default function Navigation({ onOpenTerminal, onOpenContact }: Navigation
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.85, transition: { duration: 0.15 } }}
                   transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-                  className="hidden md:flex items-center gap-3 sm:gap-4"
+                  className="hidden md:flex items-center gap-2 lg:gap-4"
                 >
                   {/* Theme Toggle */}
                   <ThemeToggle />

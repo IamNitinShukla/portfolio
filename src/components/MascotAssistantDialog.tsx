@@ -64,7 +64,17 @@ function useReplyAvatars(
   useEffect(() => {
     let animId: number;
     let fallbackVideo: HTMLVideoElement | null = null;
+    let fallbackImg: HTMLImageElement | null = null;
     let isDisposed = false;
+
+    // Dedicated fallback static image if video playback is restricted
+    const getFallbackImage = () => {
+      if (!fallbackImg && typeof Image !== "undefined") {
+        fallbackImg = new Image();
+        fallbackImg.src = "/images/red-robot-mascot.png";
+      }
+      return fallbackImg;
+    };
 
     // Dedicated fallback video element if source video is paused, not mounted, or unavailable
     const getFallbackVideo = () => {
@@ -94,10 +104,9 @@ function useReplyAvatars(
           }
         }
 
+        const canvases = root.querySelectorAll<HTMLCanvasElement>("canvas");
         if (activeVideo && activeVideo.readyState >= 2) {
           const size = activeVideo.videoWidth || 300;
-          // Directly query all assistant reply avatar canvases in the feed
-          const canvases = root.querySelectorAll<HTMLCanvasElement>("canvas");
           canvases.forEach(canvas => {
             const ctx = canvas.getContext("2d");
             if (!ctx) return;
@@ -115,6 +124,17 @@ function useReplyAvatars(
               canvas.height
             );
           });
+        } else {
+          // If video isn't ready or supported, draw static mascot image so avatar never stays blank
+          const img = getFallbackImage();
+          if (img && img.complete && img.naturalWidth > 0) {
+            canvases.forEach(canvas => {
+              const ctx = canvas.getContext("2d");
+              if (!ctx) return;
+              ctx.clearRect(0, 0, canvas.width, canvas.height);
+              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            });
+          }
         }
       }
 
@@ -585,6 +605,8 @@ export default function MascotAssistantDialog({
             finalTranscript={voiceAssistant.finalTranscript}
             isMuted={voiceAssistant.isMuted}
             errorMessage={voiceAssistant.errorMessage}
+            errorCategory={voiceAssistant.errorCategory}
+            lastAssistantReply={voiceAssistant.lastAssistantReply}
             onInterrupt={voiceAssistant.interrupt}
             onToggleMute={voiceAssistant.toggleMute}
             onExit={voiceAssistant.stopVoiceMode}
@@ -594,6 +616,7 @@ export default function MascotAssistantDialog({
               onDismiss();
             }}
             onRetry={voiceAssistant.retryListening}
+            onRetrySpeech={voiceAssistant.retrySpeech}
             audioLevel={voiceAssistant.audioLevel}
           />
         )}
