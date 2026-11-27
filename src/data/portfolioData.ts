@@ -88,9 +88,8 @@ export interface SocialLinkItem {
 }
 
 export interface PhilosophyStage {
-  num: string;
   word: string;
-  label: string;
+  subheading: string;
 }
 
 export const socialLinks = {
@@ -186,10 +185,10 @@ export const portfolioData = {
     eyebrow: "PHILOSOPHY",
     title: "How I build.",
     stages: [
-      { num: "01", word: "SIMPLE", label: "01 — SIMPLE" },
-      { num: "02", word: "FAST", label: "02 — FAST" },
-      { num: "03", word: "USEFUL", label: "03 — USEFUL" },
-      { num: "04", word: "CRAFTED", label: "04 — CRAFTED" },
+      { word: "SIMPLE", subheading: "Clarity over complexity." },
+      { word: "FAST", subheading: "Respect every millisecond." },
+      { word: "USEFUL", subheading: "Solve what actually matters." },
+      { word: "CRAFTED", subheading: "Details make the difference." },
     ],
   },
 

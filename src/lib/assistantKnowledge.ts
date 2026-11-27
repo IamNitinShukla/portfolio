@@ -76,10 +76,10 @@ Contact & Profiles:
 - Resume: ${portfolioData.personal.resumeUrl}
 
 Engineering Philosophy:
-01 — SIMPLE.
-02 — FAST.
-03 — USEFUL.
-04 — CRAFTED.
+• SIMPLE. — Clarity over complexity.
+• FAST. — Respect every millisecond.
+• USEFUL. — Solve what actually matters.
+• CRAFTED. — Details make the difference.
 
 Core Skills & Technologies:
 Tech Marquee: ${portfolioData.techMarquee.join(", ")}

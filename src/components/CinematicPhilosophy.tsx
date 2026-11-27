@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import Image from "next/image";
 import {
   motion,
   useScroll,
@@ -10,10 +11,10 @@ import {
 } from "framer-motion";
 
 const stages = [
-  { num: "01", word: "SIMPLE", label: "01 — SIMPLE" },
-  { num: "02", word: "FAST", label: "02 — FAST" },
-  { num: "03", word: "USEFUL", label: "03 — USEFUL" },
-  { num: "04", word: "CRAFTED", label: "04 — CRAFTED" },
+  { word: "SIMPLE", subheading: "Clarity over complexity." },
+  { word: "FAST", subheading: "Respect every millisecond." },
+  { word: "USEFUL", subheading: "Solve what actually matters." },
+  { word: "CRAFTED", subheading: "Details make the difference." },
 ];
 
 export default function CinematicPhilosophy() {
@@ -27,7 +28,7 @@ export default function CinematicPhilosophy() {
     offset: ["start start", "end end"],
   });
 
-  // Track active stage index for counter and accessibility
+  // Track active stage index for accessibility
   useMotionValueEvent(scrollYProgress, "change", (latest) => {
     if (latest < 0.25) {
       setActiveStage(0);
@@ -123,21 +124,31 @@ export default function CinematicPhilosophy() {
       aria-label="Philosophy"
     >
       {/* Sticky Fullscreen Cinematic Viewport Container */}
-      <div className="sticky top-0 h-screen w-full overflow-hidden bg-black flex flex-col justify-between items-center px-4 sm:px-8 py-8 sm:py-12 z-20">
+      <div className="sticky top-0 h-screen w-full overflow-hidden bg-black flex items-center justify-center px-4 sm:px-8 z-20">
         
-        {/* Subtle Top Kicker / Header */}
-        <div className="w-full max-w-7xl flex items-center justify-between font-mono text-[11px] sm:text-xs text-white/35 tracking-[0.25em] uppercase select-none">
-          <div className="flex items-center gap-2">
-            <span className="h-1.5 w-1.5 rounded-full bg-[#E8FF70] animate-pulse" aria-hidden="true" />
-            <span className="text-[#E8FF70]/90 font-semibold">CORE ARCHITECTURE</span>
+        {/* Stationary Atmospheric Robotic Background */}
+        <div
+          className="pointer-events-none absolute inset-0 z-0 overflow-hidden flex items-center justify-center select-none"
+          aria-hidden="true"
+        >
+          <div className="relative w-full max-w-[1280px] h-[70vh] sm:h-[80vh] max-h-[720px] opacity-[0.16] sm:opacity-[0.20] blur-[16px] sm:blur-[22px] contrast-75 brightness-[0.45] scale-105 sm:scale-110">
+            <Image
+              src="/images/creative-hands.svg"
+              alt=""
+              fill
+              priority
+              unoptimized
+              className="object-contain object-center"
+            />
           </div>
-          <span className="hidden sm:inline text-white/20 tracking-widest font-medium">
-            CINEMATIC TYPOGRAPHY
-          </span>
+
+          {/* Dark Overlay for seamless blending into pure black */}
+          <div className="absolute inset-0 bg-black/55 backdrop-blur-[1px]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_30%,#000000_85%)]" />
         </div>
 
-        {/* Centered Massive Typography Stage */}
-        <div className="relative w-full max-w-6xl flex-1 flex items-center justify-center">
+        {/* Centered Massive Typography Stage (Synchronized Crossfade) */}
+        <div className="relative z-10 w-full max-w-6xl flex items-center justify-center h-full">
           {stages.map((stage, idx) => (
             <motion.div
               key={stage.word}
@@ -146,30 +157,20 @@ export default function CinematicPhilosophy() {
                 scale: shouldReduceMotion ? 1 : scales[idx],
                 y: shouldReduceMotion ? 0 : yOffsets[idx],
               }}
-              className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none text-center px-2"
+              className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none text-center px-4"
             >
-              {/* Technical Sequence Label (01 — SIMPLE) */}
-              <span className="font-mono text-xs sm:text-sm md:text-base font-semibold tracking-[0.28em] uppercase text-[#E8FF70] mb-3 sm:mb-5 block">
-                {stage.label}
-              </span>
-
               {/* Dominant Centered Word with Lime Full Stop */}
               <h2 className="text-[14vw] sm:text-[11vw] lg:text-[10rem] xl:text-[11.5rem] font-black tracking-[-0.04em] text-[#F5F5F0] leading-none whitespace-nowrap">
                 {stage.word}
                 <span className="text-[#E8FF70]">.</span>
               </h2>
+
+              {/* Short Understated Supporting Heading */}
+              <p className="mt-4 sm:mt-6 md:mt-8 text-base sm:text-xl md:text-2xl lg:text-[1.65rem] font-medium tracking-[-0.015em] text-[#A4A49C] text-center select-none max-w-xl mx-auto px-4">
+                {stage.subheading}
+              </p>
             </motion.div>
           ))}
-        </div>
-
-        {/* Subtle Bottom Bar */}
-        <div className="w-full max-w-7xl flex items-center justify-between font-mono text-xs text-white/40 tracking-widest pb-3 sm:pb-4 select-none pr-16 sm:pr-24 lg:pr-32">
-          <span className="text-[#E8FF70]/70 font-medium tracking-[0.2em] text-[10px] sm:text-xs">
-            SCROLL TO ADVANCE
-          </span>
-          <span className="font-semibold text-[#E8FF70] tracking-[0.2em] text-xs">
-            0{activeStage + 1} <span className="text-white/25 font-normal">/</span> 04
-          </span>
         </div>
 
         {/* Bottom Pinned Horizontal Progress Line */}
