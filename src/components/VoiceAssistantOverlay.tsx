@@ -240,13 +240,6 @@ export default function VoiceAssistantOverlay({
             className={`relative z-10 flex items-center justify-center cursor-pointer transition-transform duration-200 active:scale-95`}
             title={isSpeaking ? "Tap to interrupt Friday" : "Friday AI Mascot"}
           >
-            {/* Continuous static base layer prevents blank flashes between animations or during decoder warmup */}
-            <img
-              src="/images/red-robot-mascot.png"
-              alt="Friday Robot Mascot"
-              aria-hidden="true"
-              className="absolute inset-0 h-44 w-44 sm:h-52 sm:w-52 object-contain pointer-events-none drop-shadow-[0_12px_32px_rgba(239,68,68,0.28)]"
-            />
             <video
               key={mascotSrc}
               src={mascotSrc}
@@ -255,7 +248,7 @@ export default function VoiceAssistantOverlay({
               muted
               playsInline
               aria-hidden="true"
-              className="relative z-10 h-44 w-44 sm:h-52 sm:w-52 object-contain pointer-events-none drop-shadow-[0_12px_32px_rgba(239,68,68,0.28)]"
+              className="h-44 w-44 sm:h-52 sm:w-52 object-contain pointer-events-none drop-shadow-[0_12px_32px_rgba(239,68,68,0.28)]"
             />
           </div>
         </div>

@@ -52,7 +52,6 @@ export function useMascotController(initialAnimation: MascotAnimationName = DEFA
   const startedTurn = useRef<typeof turn | null>(null);
   const endedTurn = useRef<typeof turn | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
-  const [isVideoReady, setIsVideoReady] = useState(false);
   const [hasError, setHasError] = useState(false);
   const requested = useRef<MascotAnimationName | null>(null);
   const { started, next } = useMascotBehaviour();
@@ -73,7 +72,6 @@ export function useMascotController(initialAnimation: MascotAnimationName = DEFA
       if (choice.name) {
         advancing = true;
         requested.current = null;
-        setIsVideoReady(false);
         setTurn({ name: choice.name });
       } else if (Number.isFinite(choice.retryAfter)) {
         if (retry === undefined) {
@@ -172,7 +170,6 @@ export function useMascotController(initialAnimation: MascotAnimationName = DEFA
     currentAnimation: turn.name,
     videoRef,
     isLoaded,
-    isVideoReady,
     hasError,
     prefersReduced,
     videoProps: {
@@ -186,14 +183,10 @@ export function useMascotController(initialAnimation: MascotAnimationName = DEFA
       },
       onPlaying: () => {
         setIsLoaded(true);
-        setIsVideoReady(true);
         if (startedTurn.current !== turn) {
           startedTurn.current = turn;
           started(turn.name);
         }
-      },
-      onError: () => {
-        setIsVideoReady(false);
       },
     },
   };

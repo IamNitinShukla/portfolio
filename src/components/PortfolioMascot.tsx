@@ -25,7 +25,7 @@ export default function PortfolioMascot({
   const clickTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastTapRef = useRef<number>(0);
   const dialogId = useId();
-  const { videoRef, isLoaded, isVideoReady, prefersReduced, videoProps, currentAnimation } = controller;
+  const { videoRef, isLoaded, prefersReduced, videoProps, currentAnimation } = controller;
 
   // Reliably hide the mascot while the user is inside the 4-stage pinned Philosophy section
   useEffect(() => {
@@ -137,23 +137,7 @@ export default function PortfolioMascot({
           onDoubleClick={handleDoubleClick}
           onTouchEnd={handleTouchEnd}
         />
-        {/* Continuous High-Fidelity Mascot Fallback / Base Layer */}
-        {/* Ensures the mascot is instantly visible on page load, never flickers during clip switches, */}
-        {/* and remains visible even on browsers/modes where WebM video decoding is restricted. */}
-        <div
-          className="pointer-events-none absolute inset-0 flex items-center justify-center select-none"
-          aria-hidden="true"
-        >
-          <img
-            src="/images/red-robot-mascot.png"
-            alt=""
-            loading="eager"
-            decoding="async"
-            className="w-full h-auto object-contain select-none"
-          />
-        </div>
-
-        {/* Dynamic Video Animation Layer */}
+        {/* Exactly one original red robot mascot video element */}
         <motion.video
           {...videoProps}
           ref={videoRef}
@@ -161,13 +145,10 @@ export default function PortfolioMascot({
           tabIndex={-1}
           preload="auto"
           data-animation={currentAnimation}
-          className="pointer-events-none relative z-10 block h-auto w-full select-none bg-transparent"
+          className="pointer-events-none relative block h-auto w-full select-none bg-transparent"
           initial={false}
-          animate={{
-            opacity: isVideoReady ? 1 : 0,
-            y: prefersReduced ? 0 : 0,
-          }}
-          transition={{ duration: 0.18, ease: "easeOut" }}
+          animate={{ opacity: isLoaded ? 1 : 0, y: isLoaded || prefersReduced ? 0 : 8 }}
+          transition={{ duration: prefersReduced ? 0 : 0.35, ease: "easeOut" }}
         />
       </div>
       {assistantOpen && (
