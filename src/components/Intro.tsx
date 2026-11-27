@@ -70,8 +70,12 @@ export default function Intro({ onComplete }: IntroProps) {
     let len1 = 8135;
 
     if (p0 && p1) {
-      len0 = p0.getTotalLength();
-      len1 = p1.getTotalLength();
+      try {
+        const measured0 = p0.getTotalLength();
+        if (measured0 > 100) len0 = measured0;
+        const measured1 = p1.getTotalLength();
+        if (measured1 > 100) len1 = measured1;
+      } catch {}
       p0.style.strokeDasharray = `${len0} ${len0}`;
       p0.style.strokeDashoffset = `${len0}`;
       p1.style.strokeDasharray = `${len1} ${len1}`;
@@ -181,22 +185,26 @@ export default function Intro({ onComplete }: IntroProps) {
           className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black overflow-hidden select-none cursor-default"
           style={{ backgroundColor: "#000000" }}
         >
-          {/* Authentic Apple "hello" SVG handwriting with slightly thicker fine-tip pen stroke & modest size reduction */}
+          {/* Authentic Apple "hello" SVG handwriting with thicker fine-tip pen stroke & reduced size */}
           <div className="relative w-full flex items-center justify-center px-6 sm:px-12 pointer-events-none">
             <svg
               viewBox="0 0 2625 867"
-              className="w-[72vw] max-w-[740px] h-auto overflow-visible"
+              className="w-[60vw] max-w-[600px] h-auto overflow-visible"
               xmlns="http://www.w3.org/2000/svg"
               aria-label="hello"
             >
+              {/* Pre-initialized strokeDashoffset to ensure initial frame is 100% black with zero flash before paint */}
               <path
                 ref={path0Ref}
                 d={PATH_STROKE_0}
                 fill="none"
                 stroke="#ffffff"
-                strokeWidth="34"
+                strokeWidth="42"
                 strokeLinecap="round"
                 strokeLinejoin="round"
+                strokeDasharray="1665 1665"
+                strokeDashoffset="1665"
+                style={{ strokeDasharray: "1665 1665", strokeDashoffset: 1665 }}
                 className="antialiased"
               />
               <path
@@ -204,9 +212,12 @@ export default function Intro({ onComplete }: IntroProps) {
                 d={PATH_STROKE_1}
                 fill="none"
                 stroke="#ffffff"
-                strokeWidth="34"
+                strokeWidth="42"
                 strokeLinecap="round"
                 strokeLinejoin="round"
+                strokeDasharray="8135 8135"
+                strokeDashoffset="8135"
+                style={{ strokeDasharray: "8135 8135", strokeDashoffset: 8135 }}
                 className="antialiased"
               />
             </svg>
