@@ -25,7 +25,7 @@ export default function ProfileCardMedia({
   const isUpiActive = cardMode === "upi";
 
   return (
-    <div className="relative mt-3 sm:mt-4 aspect-[4/4.7] select-none">
+    <div className="relative mt-2.5 sm:mt-3 aspect-[4/4.7] select-none">
       {/* Mode A: Clean Interactive Rainbow Photo Gallery (Personal Identity) */}
       <motion.div
         className="absolute inset-0 w-full h-full"

@@ -316,11 +316,11 @@ export default function Hero({ onOpenContact }: HeroProps = {}) {
 
                 {/* Card Foreground Content Layer */}
                 <div className="relative z-10 flex flex-col">
-                {/* Speaker notch at top */}
-                <div className="h-1 w-10 bg-border rounded-full mx-auto mb-3 sm:mb-3.5" />
+                {/* Speaker notch at top: dark black handle */}
+                <div className="h-1 w-10 bg-black dark:bg-[#000000] rounded-full mx-auto mb-2 sm:mb-2.5" />
 
-                {/* Card Header Status Row */}
-                <div className="flex items-center justify-between pb-3 sm:pb-3.5 border-b border-border">
+                {/* Card Header Status Row (White divider line removed) */}
+                <div className="flex items-center justify-between pb-2 sm:pb-2.5">
                   <div className="flex items-center gap-2">
                     <span className={`h-1.5 w-1.5 rounded-full ${cardMode === "upi" ? "bg-emerald-400" : "bg-accent"} animate-pulse`} />
                     <span className="font-mono text-[10px] sm:text-[11px] font-bold tracking-widest text-primary-muted uppercase">
@@ -328,10 +328,10 @@ export default function Hero({ onOpenContact }: HeroProps = {}) {
                     </span>
                   </div>
                   <div
-                    className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border transition-colors ${
+                    className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-full transition-colors ${
                       cardMode === "upi"
-                        ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
-                        : "bg-accent/10 border-accent/30 text-accent"
+                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                        : "bg-accent/10 text-accent"
                     }`}
                   >
                     {cardMode === "upi" ? (
@@ -363,7 +363,7 @@ export default function Hero({ onOpenContact }: HeroProps = {}) {
                 />
 
                 {/* Card Footer Metadata */}
-                <div className="mt-3.5 sm:mt-4 pt-3 sm:pt-3.5 border-t border-border flex flex-col gap-2 sm:gap-2.5">
+                <div className="mt-2.5 sm:mt-3 pt-2.5 sm:pt-3 border-t border-border flex flex-col gap-2 sm:gap-2.5">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="font-mono text-[9px] sm:text-[10px] uppercase tracking-wider text-primary-muted">NAME // ROLE</p>
