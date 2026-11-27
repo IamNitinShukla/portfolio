@@ -19,8 +19,6 @@ export default function Intro({ onComplete }: IntroProps) {
 
   const path0Ref = useRef<SVGPathElement | null>(null);
   const path1Ref = useRef<SVGPathElement | null>(null);
-  const stop1Ref = useRef<SVGStopElement | null>(null);
-  const stop2Ref = useRef<SVGStopElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -66,8 +64,6 @@ export default function Intro({ onComplete }: IntroProps) {
     // Initialize SVG path lengths
     const p0 = path0Ref.current;
     const p1 = path1Ref.current;
-    const stop1 = stop1Ref.current;
-    const stop2 = stop2Ref.current;
     const container = containerRef.current;
 
     let len0 = 1665;
@@ -89,62 +85,74 @@ export default function Intro({ onComplete }: IntroProps) {
       if (startTime === null) startTime = now;
       const elapsed = now - startTime;
 
-      // Phase 1: Progressive Natural Handwriting (0 - 2300ms)
-      // Stroke 0: 0 - 400ms (h entry loop & stem)
-      // Stroke 1: 400 - 2300ms (h arch, e, l, l, o, flourish tail)
+      // -------------------------------------------------------------
+      // Phase 1: Progressive Natural Handwriting (0 - 3000ms)
+      // Stroke 0: 0 - 500ms (h entry loop & stem)
+      // Stroke 1: 500 - 3000ms (h arch, e, l, l, o, flourish tail)
+      // -------------------------------------------------------------
       if (p0 && p1) {
-        if (elapsed <= 400) {
-          const p = Math.min(1, Math.max(0, elapsed / 400));
+        if (elapsed <= 500) {
+          const p = Math.min(1, Math.max(0, elapsed / 500));
           const ease = 1 - Math.pow(1 - p, 1.25);
           p0.style.strokeDashoffset = `${len0 * (1 - ease)}`;
           p1.style.strokeDashoffset = `${len1}`;
-        } else if (elapsed <= 2300) {
+        } else if (elapsed <= 3000) {
           p0.style.strokeDashoffset = "0";
-          const p = Math.min(1, Math.max(0, (elapsed - 400) / (2300 - 400)));
-          // Smooth, deliberate handwriting easing
+          const p = Math.min(1, Math.max(0, (elapsed - 500) / (3000 - 500)));
+          // Smooth deliberate handwriting easing
           const ease = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
           p1.style.strokeDashoffset = `${len1 * (1 - ease)}`;
-        } else {
+        } else if (elapsed <= 3600) {
+          // -------------------------------------------------------------
+          // Phase 2: Completed Word Hold (3000 - 3600ms)
+          // Fully visible and held stable in center view
+          // -------------------------------------------------------------
           p0.style.strokeDashoffset = "0";
           p1.style.strokeDashoffset = "0";
-        }
-      }
-
-      // Phase 2: Completed Word Hold (2300 - 3000ms)
-      // Fully visible, mask inactive
-
-      // Phase 3: Progressive Erasing from Left to Right (3000 - 3700ms)
-      // Soft feathered gradient mask moves from left (h) to right (tail flourish vanishing last at 3700ms)
-      if (stop1 && stop2) {
-        if (elapsed < 3000) {
-          stop1.setAttribute("offset", "0%");
-          stop2.setAttribute("offset", "0%");
-        } else if (elapsed <= 3700) {
-          const eraseP = (elapsed - 3000) / 700; // 0 to 1
-          const start = -8 + eraseP * (98 - (-8));
-          const end = start + 10;
-          stop1.setAttribute("offset", `${Math.max(0, Math.min(100, start))}%`);
-          stop2.setAttribute("offset", `${Math.max(0, Math.min(100, end))}%`);
+        } else if (elapsed <= 4510) {
+          // -------------------------------------------------------------
+          // Phase 3a: Reverse Handwriting / Stroke 1 (3600 - 4510ms)
+          // The pen motion reverses along Stroke 1: flourish tail disappears
+          // first, un-writing back through 'o', 'l', 'l', 'e', and 'h' arch
+          // -------------------------------------------------------------
+          p0.style.strokeDashoffset = "0";
+          const unwriteP = (elapsed - 3600) / 910;
+          const ease = unwriteP < 0.5 ? 2 * unwriteP * unwriteP : 1 - Math.pow(-2 * unwriteP + 2, 2) / 2;
+          p1.style.strokeDashoffset = `${len1 * ease}`;
+        } else if (elapsed <= 4700) {
+          // -------------------------------------------------------------
+          // Phase 3b: Reverse Handwriting / Stroke 0 (4510 - 4700ms)
+          // Stroke 1 is completely un-written; Stroke 0 un-writes from
+          // stem bottom back up the loop to its origin
+          // -------------------------------------------------------------
+          p1.style.strokeDashoffset = `${len1}`;
+          const unwriteP = (elapsed - 4510) / 190;
+          const ease = unwriteP < 0.5 ? 2 * unwriteP * unwriteP : 1 - Math.pow(-2 * unwriteP + 2, 2) / 2;
+          p0.style.strokeDashoffset = `${len0 * ease}`;
         } else {
-          stop1.setAttribute("offset", "100%");
-          stop2.setAttribute("offset", "100%");
+          // Word has completely disappeared by 4700ms
+          p0.style.strokeDashoffset = `${len0}`;
+          p1.style.strokeDashoffset = `${len1}`;
         }
       }
 
-      // Phase 4: Smooth Overlay Opacity Fade / Homepage Reveal (3700 - 4000ms)
+      // -------------------------------------------------------------
+      // Phase 4: Smooth Homepage Reveal (4700 - 5000ms)
+      // Overlay opacity smoothly fades from 1 to 0 over 300ms
+      // -------------------------------------------------------------
       if (container) {
-        if (elapsed <= 3700) {
+        if (elapsed <= 4700) {
           container.style.opacity = "1";
-        } else if (elapsed <= 4000) {
-          const fadeProgress = (elapsed - 3700) / 300;
+        } else if (elapsed <= 5000) {
+          const fadeProgress = (elapsed - 4700) / 300;
           container.style.opacity = `${Math.max(0, 1 - fadeProgress)}`;
         } else {
           container.style.opacity = "0";
         }
       }
 
-      // End of intro sequence at exactly 4000ms: finish immediately with zero delay
-      if (elapsed >= 4000) {
+      // End of intro sequence at exactly 5000ms: finish immediately with zero delay
+      if (elapsed >= 5000) {
         handleFinish(true);
       } else {
         animationFrameId = requestAnimationFrame(tick);
@@ -173,47 +181,34 @@ export default function Intro({ onComplete }: IntroProps) {
           className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black overflow-hidden select-none cursor-default"
           style={{ backgroundColor: "#000000" }}
         >
-          {/* Authentic Apple "hello" SVG handwriting */}
+          {/* Authentic Apple "hello" SVG handwriting with slightly thicker fine-tip pen stroke & modest size reduction */}
           <div className="relative w-full flex items-center justify-center px-6 sm:px-12 pointer-events-none">
             <svg
               viewBox="0 0 2625 867"
-              className="w-[85vw] max-w-[960px] h-auto overflow-visible"
+              className="w-[72vw] max-w-[740px] h-auto overflow-visible"
               xmlns="http://www.w3.org/2000/svg"
               aria-label="hello"
             >
-              <defs>
-                {/* Horizontal feathered mask for smooth left-to-right stroke erase */}
-                <linearGradient id="apple-hello-erase-grad" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop ref={stop1Ref} offset="0%" stopColor="#ffffff" stopOpacity="0" />
-                  <stop ref={stop2Ref} offset="0%" stopColor="#ffffff" stopOpacity="1" />
-                </linearGradient>
-                <mask id="apple-hello-erase-mask">
-                  <rect x="0" y="0" width="2625" height="867" fill="url(#apple-hello-erase-grad)" />
-                </mask>
-              </defs>
-
-              <g mask="url(#apple-hello-erase-mask)">
-                <path
-                  ref={path0Ref}
-                  d={PATH_STROKE_0}
-                  fill="none"
-                  stroke="#ffffff"
-                  strokeWidth="26"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="antialiased"
-                />
-                <path
-                  ref={path1Ref}
-                  d={PATH_STROKE_1}
-                  fill="none"
-                  stroke="#ffffff"
-                  strokeWidth="26"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="antialiased"
-                />
-              </g>
+              <path
+                ref={path0Ref}
+                d={PATH_STROKE_0}
+                fill="none"
+                stroke="#ffffff"
+                strokeWidth="34"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="antialiased"
+              />
+              <path
+                ref={path1Ref}
+                d={PATH_STROKE_1}
+                fill="none"
+                stroke="#ffffff"
+                strokeWidth="34"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="antialiased"
+              />
             </svg>
           </div>
 
