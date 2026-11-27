@@ -10,14 +10,9 @@ import ThemeToggle from "@/components/ThemeToggle";
 interface NavigationProps {
   onOpenTerminal?: () => void;
   onOpenContact?: () => void;
-  onOpenBooking?: () => void;
 }
 
-export default function Navigation({
-  onOpenTerminal,
-  onOpenContact,
-  onOpenBooking,
-}: NavigationProps) {
+export default function Navigation({ onOpenTerminal, onOpenContact }: NavigationProps) {
   const [scrolled, setScrolled] = useState(false);
   const [activeSection, setActiveSection] = useState("hero");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -210,54 +205,34 @@ export default function Navigation({
               )}
             </AnimatePresence>
 
-            {/* Let's Talk CTA (Visible in BOTH Top & Scrolled States on Desktop; opens Cal.com Booking Modal) */}
-            <motion.button
-              type="button"
+            {/* Let's Talk CTA (Visible in BOTH Top & Scrolled States on Desktop; navigates directly to Cal.com booking page in the same tab) */}
+            <motion.a
               layout
               transition={{ duration: 0.36, ease: [0.16, 1, 0.3, 1] }}
-              onClick={(e) => {
-                e.preventDefault();
-                if (onOpenBooking) {
-                  onOpenBooking();
-                } else if (typeof window !== "undefined") {
-                  window.dispatchEvent(new CustomEvent("open-booking-modal"));
-                } else if (onOpenContact) {
-                  onOpenContact();
-                }
-              }}
+              href={portfolioData.personal.calDotCom}
               className={cn(
                 "hidden md:inline-flex items-center gap-1.5 rounded-full bg-accent hover:bg-accent-hover text-white dark:text-[#101110] font-mono font-bold text-xs tracking-wider uppercase transition-colors shadow-md shadow-accent/20 cursor-pointer",
                 scrolled
                   ? "px-4 py-1.5 text-[11px]"
                   : "px-5 py-2 text-xs"
               )}
-              aria-label="Open scheduling calendar to book a meeting with Nitin Shukla"
+              aria-label="Schedule a meeting with Nitin Shukla on Cal.com"
             >
               <span>Let&apos;s Talk</span>
               <ArrowUpRight className="w-3.5 h-3.5" />
-            </motion.button>
+            </motion.a>
 
             {/* Mobile Actions */}
             <div className="flex md:hidden items-center gap-2">
               {scrolled && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    if (onOpenBooking) {
-                      onOpenBooking();
-                    } else if (typeof window !== "undefined") {
-                      window.dispatchEvent(new CustomEvent("open-booking-modal"));
-                    } else if (onOpenContact) {
-                      onOpenContact();
-                    }
-                  }}
+                <a
+                  href={portfolioData.personal.calDotCom}
                   className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-accent hover:bg-accent-hover text-white dark:text-[#101110] font-mono font-bold text-[11px] tracking-wider uppercase shadow-sm cursor-pointer"
-                  aria-label="Open scheduling calendar to book a meeting with Nitin Shukla"
+                  aria-label="Schedule a meeting with Nitin Shukla on Cal.com"
                 >
                   <span>Talk</span>
                   <ArrowUpRight className="w-3 h-3" />
-                </button>
+                </a>
               )}
 
               <button
@@ -326,24 +301,15 @@ export default function Navigation({
                 <span>Resume</span>
               </a>
 
-              <button
-                type="button"
-                onClick={(e) => {
-                  setMobileMenuOpen(false);
-                  if (onOpenBooking) {
-                    onOpenBooking();
-                  } else if (typeof window !== "undefined") {
-                    window.dispatchEvent(new CustomEvent("open-booking-modal"));
-                  } else if (onOpenContact) {
-                    onOpenContact();
-                  }
-                }}
+              <a
+                href={portfolioData.personal.calDotCom}
+                onClick={() => setMobileMenuOpen(false)}
                 className="flex items-center justify-center gap-1.5 p-3 rounded-full bg-accent hover:bg-accent-hover text-white dark:text-[#101110] font-bold text-xs uppercase tracking-wider shadow-md shadow-accent/20 transition-all cursor-pointer"
-                aria-label="Open scheduling calendar to book a meeting with Nitin Shukla"
+                aria-label="Schedule a meeting with Nitin Shukla on Cal.com"
               >
                 <span>Let&apos;s Talk</span>
                 <ArrowUpRight className="w-3.5 h-3.5" />
-              </button>
+              </a>
             </div>
           </div>
         </div>
