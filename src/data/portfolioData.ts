@@ -87,6 +87,13 @@ export interface SocialLinkItem {
   isExternal: boolean;
 }
 
+export interface EngineeringPrinciple {
+  num: string;
+  category: string;
+  headline: string;
+  description: string;
+}
+
 export const socialLinks = {
   github: "https://github.com/IamNitinShukla",
   linkedin: "https://www.linkedin.com/in/iamnitinshukla",
@@ -179,6 +186,41 @@ export const portfolioData = {
   philosophy: {
     eyebrow: "PHILOSOPHY",
     title: "How I build.",
+    intro: {
+      eyebrow: "ENGINEERING PRINCIPLES",
+      title: "My engineering principles.",
+      desc: "The way I approach problems, design systems, and turn ideas into useful products.",
+    },
+    principles: [
+      {
+        num: "01",
+        category: "CLARITY",
+        headline: "Understand before building.",
+        description:
+          "Good engineering starts with understanding the problem. I prefer a simple solution that works over complexity that only looks impressive.",
+      },
+      {
+        num: "02",
+        category: "PERFORMANCE",
+        headline: "Every millisecond matters.",
+        description:
+          "Responsiveness is part of the experience. I care about efficient systems, fast feedback, and thoughtful architecture.",
+      },
+      {
+        num: "03",
+        category: "INTELLIGENCE",
+        headline: "Use AI with purpose.",
+        description:
+          "AI belongs where it creates genuine value, not where it adds unnecessary complexity.",
+      },
+      {
+        num: "04",
+        category: "CRAFT",
+        headline: "Details define the product.",
+        description:
+          "From system reliability to the smallest interaction, every detail contributes to the final experience.",
+      },
+    ],
     quote:
       "I believe the best technology disappears into intuitive utility. My work sits at the intersection of robust backend architecture, applied machine learning, and tactile user experience.",
     pillars: [
