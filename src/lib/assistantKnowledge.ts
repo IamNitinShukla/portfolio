@@ -75,10 +75,11 @@ Contact & Profiles:
 - Public UPI ID: ${portfolioData.personal.upiId} (URI: ${portfolioData.personal.upiUri})
 - Resume: ${portfolioData.personal.resumeUrl}
 
-Engineering Philosophy & Principles:
-Intro: ${portfolioData.philosophy.intro.desc}
-Principles:
-${portfolioData.philosophy.principles.map(p => `• [${p.num} ${p.category}] ${p.headline} — ${p.description}`).join("\n")}
+Engineering Philosophy:
+01 — SIMPLE.
+02 — FAST.
+03 — USEFUL.
+04 — CRAFTED.
 
 Core Skills & Technologies:
 Tech Marquee: ${portfolioData.techMarquee.join(", ")}

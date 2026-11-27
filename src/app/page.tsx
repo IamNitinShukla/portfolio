@@ -6,7 +6,7 @@ import { AnimatePresence } from "framer-motion";
 import Navigation from "@/components/Navigation";
 import Hero from "@/components/Hero";
 import TechMarquee from "@/components/TechMarquee";
-import Storytelling from "@/components/Storytelling";
+import CinematicPhilosophy from "@/components/CinematicPhilosophy";
 import About from "@/components/About";
 import Skills from "@/components/Skills";
 import FeaturedProjects from "@/components/FeaturedProjects";
@@ -83,8 +83,8 @@ export default function Home() {
         {/* Marquee Technology Band */}
         <TechMarquee />
 
-        {/* Creative Visual Storytelling / How I Build */}
-        <Storytelling />
+        {/* Cinematic Scroll-Driven Philosophy Experience */}
+        <CinematicPhilosophy />
 
         {/* About Me Section */}
         <About />

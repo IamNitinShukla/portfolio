@@ -87,11 +87,10 @@ export interface SocialLinkItem {
   isExternal: boolean;
 }
 
-export interface EngineeringPrinciple {
+export interface PhilosophyStage {
   num: string;
-  category: string;
-  headline: string;
-  description: string;
+  word: string;
+  label: string;
 }
 
 export const socialLinks = {
@@ -186,64 +185,11 @@ export const portfolioData = {
   philosophy: {
     eyebrow: "PHILOSOPHY",
     title: "How I build.",
-    intro: {
-      eyebrow: "ENGINEERING PRINCIPLES",
-      title: "My engineering principles.",
-      desc: "The way I approach problems, design systems, and turn ideas into useful products.",
-    },
-    principles: [
-      {
-        num: "01",
-        category: "CLARITY",
-        headline: "Understand before building.",
-        description:
-          "Good engineering starts with understanding the problem. I prefer a simple solution that works over complexity that only looks impressive.",
-      },
-      {
-        num: "02",
-        category: "PERFORMANCE",
-        headline: "Every millisecond matters.",
-        description:
-          "Responsiveness is part of the experience. I care about efficient systems, fast feedback, and thoughtful architecture.",
-      },
-      {
-        num: "03",
-        category: "INTELLIGENCE",
-        headline: "Use AI with purpose.",
-        description:
-          "AI belongs where it creates genuine value, not where it adds unnecessary complexity.",
-      },
-      {
-        num: "04",
-        category: "CRAFT",
-        headline: "Details define the product.",
-        description:
-          "From system reliability to the smallest interaction, every detail contributes to the final experience.",
-      },
-    ],
-    quote:
-      "I believe the best technology disappears into intuitive utility. My work sits at the intersection of robust backend architecture, applied machine learning, and tactile user experience.",
-    pillars: [
-      {
-        num: "01",
-        label: "Simple.",
-        desc: "Easy to read. Easy to delete. Zero tolerance for unearned complexity or resume-driven architectural bloat.",
-      },
-      {
-        num: "02",
-        label: "Fast.",
-        desc: "Speed is respect. Sub-second response times, streaming token responses, and instantaneous client interactions.",
-      },
-      {
-        num: "03",
-        label: "Useful.",
-        desc: "AI only where it solves genuine bottlenecks. Real utility triumphs over speculative tech demos every single time.",
-      },
-      {
-        num: "04",
-        label: "Crafted.",
-        desc: "Care lives in the subtle details: deterministic error states, tactile feedback, and interfaces that feel effortless.",
-      },
+    stages: [
+      { num: "01", word: "SIMPLE", label: "01 — SIMPLE" },
+      { num: "02", word: "FAST", label: "02 — FAST" },
+      { num: "03", word: "USEFUL", label: "03 — USEFUL" },
+      { num: "04", word: "CRAFTED", label: "04 — CRAFTED" },
     ],
   },
 
