@@ -112,6 +112,7 @@ class VoiceSession {
   private initializing = false;
   private turnCount = 0;
   private lastLevelEmit = 0;
+  private currentCorrelationId = "";
 
   public diagnostics: VoiceDiagnostics = {
     micActive: false,
@@ -305,6 +306,10 @@ class VoiceSession {
     const signal = this.turn.signal;
     this.turnCount++;
     this.diagnostics.turnCount = this.turnCount;
+    const turnCorrelationId = `turn_${this.turnCount}_${Date.now().toString(36)}`;
+    this.currentCorrelationId = turnCorrelationId;
+
+    logDiagnostic("Stage A: STT", `[${turnCorrelationId}] Listening turn started, mic active`);
 
     this.transition("listening", `turn_${this.turnCount}_init`, {
       errorMessage: "",
@@ -332,10 +337,10 @@ class VoiceSession {
           void this.generate(text, signal);
         };
         recognition.onend = () => {
-          if (!signal.aborted && !finalized) this.fail("No speech recognized. Retry when ready.", "no_speech_engine");
+          if (!signal.aborted && !finalized) this.fail("No speech recognized. Retry when ready.", "no_speech_engine", "transcription_error");
         };
         recognition.onerror = () => {
-          if (!signal.aborted && !finalized) this.fail("Local recognition failed. Retry when ready.", "local_engine_error");
+          if (!signal.aborted && !finalized) this.fail("Local recognition failed. Retry when ready.", "local_engine_error", "transcription_error");
         };
         recognition.start(this.stream.getAudioTracks()[0]);
         return;
@@ -495,15 +500,22 @@ class VoiceSession {
   }
 
   private async transcribe(blob: Blob, signal: AbortSignal) {
+    const turnId = this.currentCorrelationId;
     this.transition("transcribing", "audio_captured_uploading");
+    logDiagnostic("Stage A: STT", `[${turnId}] Audio captured (${blob.size} bytes, ${blob.type}), uploading to /api/transcribe`);
+
     this.timer = window.setTimeout(() => {
-      this.fail("Transcription timed out. Please retry.", "transcribe_timeout");
-    }, 30000);
+      logDiagnostic("Stage A: STT", `[${turnId}] Transcription timed out after 16s watchdog`);
+      this.fail("Transcription timed out. Please retry.", "transcribe_timeout", "transcription_error");
+    }, 16000);
 
     try {
       const res = await fetch("/api/transcribe", {
         method: "POST",
-        headers: { "Content-Type": blob.type || "audio/webm" },
+        headers: {
+          "Content-Type": blob.type || "audio/webm",
+          "X-Friday-Correlation-Id": turnId,
+        },
         body: blob,
         signal,
       });
@@ -512,14 +524,16 @@ class VoiceSession {
 
       if (!res.ok) {
         if (data.code === "no_speech") {
-          logDiagnostic("STT", "No speech detected in clip; returning to listening");
+          logDiagnostic("Stage A: STT", `[${turnId}] No speech detected in audio clip; returning cleanly to listening`);
           this.listen();
           return;
         }
         if (data.code === "stt_unavailable" && (await this.enableLocalRecognition())) {
+          logDiagnostic("Stage A: STT", `[${turnId}] STT unavailable; failing over to local speech engine`);
           if (!signal.aborted) this.listen();
           return;
         }
+        logDiagnostic("Stage A: STT", `[${turnId}] Transcription rejected with HTTP ${res.status}: ${data.error || "error"}`);
         throw new Error(data.error || "Voice transcription failed. Please retry.");
       }
 
@@ -528,36 +542,50 @@ class VoiceSession {
         throw new Error("No transcript was returned. Please retry.");
       }
 
+      logDiagnostic("Stage A: STT", `[${turnId}] Transcription succeeded via ${data.model || "Gemini"}: "${transcript.slice(0, 50)}"`);
       clearTimeout(this.timer);
       this.timer = undefined;
       await this.generate(transcript, signal);
     } catch (error) {
       if (!signal.aborted) {
+        logDiagnostic("Stage A: STT", `[${turnId}] Transcription failed: ${error instanceof Error ? error.message : "unknown"}`);
         this.fail(
           error instanceof Error ? error.message : "Transcription failed.",
-          "transcribe_error"
+          "transcribe_error",
+          "transcription_error"
         );
       }
     }
   }
 
   private async generate(text: string, signal: AbortSignal) {
+    const turnId = this.currentCorrelationId;
     this.transition("generating", "transcription_complete_requesting_reply", {
       finalTranscript: text,
       audioLevel: 0,
     });
+    logDiagnostic("Stage B: SUBMIT", `[${turnId}] Submitting query to assistant: "${text.slice(0, 60)}"`);
+    logDiagnostic("Stage C: AI", `[${turnId}] Requesting reply from Friday AI model...`);
+
     this.timer = window.setTimeout(() => {
-      this.fail("Friday's reply timed out. Please retry.", "reply_timeout");
-    }, 48000);
+      logDiagnostic("Stage C: AI", `[${turnId}] Generation watchdog timed out after 20s`);
+      this.fail("Friday's reply timed out. Please retry.", "reply_timeout", "generation_error");
+    }, 20000);
 
     try {
       const reply = await this.send(text, signal);
       if (signal.aborted) return;
       clearTimeout(this.timer);
       this.timer = undefined;
+
+      logDiagnostic("Stage D: RESPONSE DELIVERY", `[${turnId}] Received text response (${reply.length} chars)`);
+      this.diagnostics.lastReply = reply;
+      this.update({ lastAssistantReply: reply });
+
       this.speakResponse(reply, signal);
     } catch (error) {
       if (!signal.aborted) {
+        logDiagnostic("Stage C: AI", `[${turnId}] AI generation error: ${error instanceof Error ? error.message : "unknown"}`);
         this.fail(
           error instanceof Error ? error.message : "Friday could not complete the reply.",
           "generate_error",
@@ -568,22 +596,27 @@ class VoiceSession {
   }
 
   private speakResponse(reply: string, signal: AbortSignal) {
+    const turnId = this.currentCorrelationId;
     const text = cleanTextForSpeech(reply);
     if (!text) {
-      this.fail("Friday returned an empty reply.", "empty_reply");
+      logDiagnostic("Stage D: RESPONSE DELIVERY", `[${turnId}] Reply text is empty after cleaning`);
+      this.fail("Friday returned an empty reply.", "empty_reply", "generation_error");
       return;
     }
 
+    logDiagnostic("Stage E: TTS", `[${turnId}] Initializing speech synthesis for ${text.length} chars`);
     this.diagnostics.lastReply = reply;
     this.update({ lastAssistantReply: reply, playbackStatus: "speaking" });
 
     if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+      logDiagnostic("Stage E: TTS", `[${turnId}] Speech synthesis unsupported in window`);
       this.update({ playbackStatus: "unsupported" });
-      this.fail(
-        "Speech playback is unsupported in this browser environment.",
-        "tts_unsupported",
-        "speech_playback_error"
-      );
+      this.transition("error", "tts_unsupported", {
+        errorMessage: "Speech playback is unsupported in this browser environment.",
+        errorCategory: "speech_playback_error",
+        playbackStatus: "unsupported",
+        lastAssistantReply: reply,
+      });
       return;
     }
 
@@ -614,28 +647,37 @@ class VoiceSession {
     } catch {}
     utterance.rate = 1.05;
 
-    // Safety watchdog in case browser speech fails to start
+    // Safety watchdog in case browser speech fails to start (e.g. autoplay block or missing audio sink)
     this.timer = window.setTimeout(() => {
-      this.fail(
-        "Speech playback did not start. Check your audio and retry.",
-        "tts_start_timeout",
-        "speech_playback_error"
-      );
-    }, 10000);
+      logDiagnostic("Stage E: TTS", `[${turnId}] Speech start watchdog elapsed (8s). Transitioning to audio error notice, preserving text.`);
+      clearTimeout(this.timer);
+      this.timer = undefined;
+      this.update({ playbackStatus: "failed" });
+      this.transition("error", "tts_start_timeout", {
+        errorMessage: "Speech playback did not start. Check your audio device or tap Replay Audio.",
+        errorCategory: "speech_playback_error",
+        playbackStatus: "failed",
+        lastAssistantReply: reply,
+      });
+    }, 8000);
 
     utterance.onstart = () => {
       if (signal.aborted) return;
       clearTimeout(this.timer);
+      logDiagnostic("Stage E: TTS", `[${turnId}] Speech playback started successfully`);
       this.update({ playbackStatus: "speaking" });
       this.transition("speaking", "speech_playback_began");
 
       // Watchdog for playback stall
       this.timer = window.setTimeout(() => {
-        this.fail(
-          "Speech playback stalled. Please retry.",
-          "tts_stall_timeout",
-          "speech_playback_error"
-        );
+        logDiagnostic("Stage E: TTS", `[${turnId}] Speech playback stalled`);
+        this.update({ playbackStatus: "failed" });
+        this.transition("error", "tts_stall_timeout", {
+          errorMessage: "Speech playback stalled. Tap Replay Audio to retry.",
+          errorCategory: "speech_playback_error",
+          playbackStatus: "failed",
+          lastAssistantReply: reply,
+        });
       }, Math.max(30000, text.length * 200));
     };
 
@@ -644,6 +686,7 @@ class VoiceSession {
       clearTimeout(this.timer);
       this.timer = undefined;
       this.utterance = undefined;
+      logDiagnostic("Stage E: TTS", `[${turnId}] Speech playback completed naturally`);
       this.update({ playbackStatus: "completed" });
       if (typeof window !== "undefined") {
         delete (window as unknown as { __fridayUtterance?: SpeechSynthesisUtterance }).__fridayUtterance;
@@ -653,7 +696,7 @@ class VoiceSession {
       // Wait 300ms for room acoustic echo to decay, then automatically resume listening!
       this.timer = window.setTimeout(() => {
         if (!signal.aborted && !this.closed && !this.muted) {
-          logDiagnostic("LIFECYCLE", "Turn completed naturally; auto-resuming listening for next question");
+          logDiagnostic("LIFECYCLE", `[${turnId}] Turn completed cleanly; auto-resuming listening for next question`);
           this.listen();
         }
       }, 300);
@@ -663,40 +706,48 @@ class VoiceSession {
       if (typeof window !== "undefined") {
         delete (window as unknown as { __fridayUtterance?: SpeechSynthesisUtterance }).__fridayUtterance;
       }
+      clearTimeout(this.timer);
+      this.timer = undefined;
       this.update({ playbackStatus: "failed" });
       if (!signal.aborted && e.error !== "canceled" && e.error !== "interrupted") {
-        logDiagnostic("TTS", `Speech playback error: ${e.error}`);
-        this.fail(
-          "Speech playback failed. Check your audio and retry.",
-          "tts_error",
-          "speech_playback_error"
-        );
+        logDiagnostic("Stage E: TTS", `[${turnId}] Speech playback error: ${e.error}`);
+        this.transition("error", "tts_error", {
+          errorMessage: "Speech playback failed on this device, but Friday's answer is ready below.",
+          errorCategory: "speech_playback_error",
+          playbackStatus: "failed",
+          lastAssistantReply: reply,
+        });
       }
     };
 
     try {
       window.speechSynthesis.speak(utterance);
-    } catch {
+    } catch (err: unknown) {
+      logDiagnostic("Stage E: TTS", `[${turnId}] window.speechSynthesis.speak exception: ${err instanceof Error ? err.message : "unknown"}`);
+      clearTimeout(this.timer);
+      this.timer = undefined;
       this.update({ playbackStatus: "failed" });
-      this.fail(
-        "Speech playback failed. Check your audio and retry.",
-        "tts_error",
-        "speech_playback_error"
-      );
+      this.transition("error", "tts_error", {
+        errorMessage: "Speech playback failed on this device, but Friday's answer is ready below.",
+        errorCategory: "speech_playback_error",
+        playbackStatus: "failed",
+        lastAssistantReply: reply,
+      });
     }
   }
 
   retrySpeech() {
     if (this.closed || !this.diagnostics.lastReply) return;
-    logDiagnostic("TTS", "Retrying speech playback on user gesture");
-    this.cancelTurn();
-    this.turn = new AbortController();
+    const turnId = this.currentCorrelationId || `retry_${Date.now().toString(36)}`;
+    logDiagnostic("Stage E: TTS", `[${turnId}] Retrying speech playback on user gesture`);
+    clearTimeout(this.timer);
+    this.timer = undefined;
     this.speakResponse(this.diagnostics.lastReply, this.turn.signal);
   }
 
   retry() {
     if (this.closed) return;
-    if (this.diagnostics.lastError && this.diagnostics.lastReply && this.diagnostics.lastTransitionReason === "tts_error") {
+    if (this.diagnostics.lastReply && (this.diagnostics.lastTransitionReason === "tts_error" || this.diagnostics.lastTransitionReason === "tts_start_timeout")) {
       this.retrySpeech();
     } else if (!this.muted) {
       void this.open();

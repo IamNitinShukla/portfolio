@@ -73,11 +73,17 @@ export default function VoiceAssistantOverlay({
     : voiceState === "error"
     ? errorCategory === "speech_playback_error"
       ? "Speech Playback Notice"
+      : errorCategory === "generation_error"
+      ? "AI Assistant Notice"
+      : errorCategory === "transcription_error"
+      ? "Voice Recognition Notice"
       : errorCategory === "microphone_permission"
       ? "Microphone Permission Required"
       : errorCategory === "microphone_unavailable"
       ? "Microphone Not Detected"
-      : "Audio Notice"
+      : errorCategory === "microphone_error"
+      ? "Microphone Input Error"
+      : "Assistant Notice"
     : "Voice Mode Ready";
 
   // Determine secondary contextual subtitle
@@ -93,6 +99,8 @@ export default function VoiceAssistantOverlay({
       : "Speak now, Friday is listening"
     : voiceState === "error" && errorCategory === "speech_playback_error"
     ? "Speech playback failed on this device, but Friday's answer is ready below."
+    : voiceState === "error" && errorCategory === "generation_error"
+    ? errorMessage || "Friday could not complete the response. Please retry."
     : errorMessage || "Speak naturally with Friday";
 
   const mascotSrc = getMascotAnimationSrc(voiceState, isMuted);

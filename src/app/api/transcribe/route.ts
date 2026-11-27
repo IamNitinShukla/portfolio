@@ -46,16 +46,20 @@ function hasAudioHeader(audio: Buffer, type: string) {
 
 export async function POST(req: NextRequest) {
   const started = Date.now();
+  const reqId = req.headers.get("x-friday-correlation-id") || ("stt_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6));
   let model: string | null = null;
   let mimeType = "";
   let bytes = 0;
-  function log(status: number, returned = false) {
-    console.info("[Friday Transcribe]", { model, status, durationMs: Date.now() - started,
-      mimeType, audioBytes: bytes, transcriptReturned: returned });
+  function log(status: number, returned = false, detail = "") {
+    console.info(`[Friday Transcribe] [reqId: ${reqId}]`, {
+      model, status, durationMs: Date.now() - started,
+      mimeType, audioBytes: bytes, transcriptReturned: returned,
+      detail: detail || undefined,
+    });
   }
-  function failure(status: number, code: string, error: string) {
-    log(status);
-    return Response.json({ code, error }, { status });
+  function failure(status: number, code: string, error: string, detail = "") {
+    log(status, false, detail || error);
+    return Response.json({ code, error, reqId }, { status });
   }
 
   const apiKey = process.env.GEMINI_API_KEY?.trim();
@@ -104,52 +108,100 @@ export async function POST(req: NextRequest) {
   if (bytes > MAX_AUDIO_BYTES) return failure(413, "too_large", "Recording is too large.");
   if (!hasAudioHeader(audio, mimeType)) return failure(400, "invalid_audio", "Recording does not match its audio format.");
 
-  const models = new Set([process.env.GEMINI_TRANSCRIBE_MODEL?.trim() || process.env.GEMINI_MODEL?.trim(),
-    "gemini-flash-lite-latest", "gemini-3.5-flash-lite"].filter((name): name is string => Boolean(name)));
-  const body = JSON.stringify({
-    systemInstruction: { parts: [{ text: "Transcribe only the spoken words verbatim. Do not answer questions. Return an empty string for silence, noise or unintelligible audio." }] },
-    contents: [{ parts: [{ inlineData: { mimeType, data: audio.toString("base64") } }, { text: "Transcribe this recording." }] }],
-    generationConfig: { temperature: 0, maxOutputTokens: 512 },
-  });
-  const deadline = AbortSignal.timeout(24000);
+  // Dedicated ASR models first, followed by multimodal fallback models
+  const candidateModels = Array.from(
+    new Set(
+      [
+        process.env.GEMINI_TRANSCRIBE_MODEL?.trim(),
+        "gemini-3.5-transcribe",
+        "gemini-3.8-flash",
+        "gemini-flash-latest",
+      ].filter((name): name is string => Boolean(name))
+    )
+  );
+
+  const base64Audio = audio.toString("base64");
+  const deadline = AbortSignal.timeout(18000);
   const signal = AbortSignal.any([req.signal, deadline]);
-  for (const candidate of Array.from(models)) {
+
+  let lastCandidateError = "";
+
+  for (const candidate of candidateModels) {
     model = candidate;
     try {
-      const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(model) + ":generateContent", {
-        method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-        body, signal, cache: "no-store",
-      });
+      // Note: gemini-3.5-transcribe does not accept systemInstruction ("Developer instruction is not enabled").
+      // Supplying the audio inlineData with prompt in contents ensures broad cross-model compatibility.
+      const requestPayload = {
+        contents: [
+          {
+            parts: [
+              { inlineData: { mimeType, data: base64Audio } },
+              { text: "Transcribe the spoken words in this audio verbatim. If silence or no speech, return an empty string or [silence]." },
+            ],
+          },
+        ],
+        generationConfig: { temperature: 0, maxOutputTokens: 512 },
+      };
+
+      const res = await fetch(
+        "https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(model) + ":generateContent",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+          body: JSON.stringify(requestPayload),
+          signal,
+          cache: "no-store",
+        }
+      );
+
       if (!res.ok) {
+        lastCandidateError = `HTTP ${res.status} from ${model}`;
         if (res.status === 400) {
           const details = await res.json().catch(() => null);
           if (details?.error?.details?.some((item: { reason?: string }) => item.reason === "API_KEY_INVALID")) {
             return failure(400, "stt_credentials", "The transcription service rejected its server credentials.");
           }
-          return failure(400, "invalid_request", "The transcription service rejected the recording or request.");
+          // If model rejected developer instruction or modality, try next candidate model
+          log(400, false, `Candidate ${model} rejected request: ${details?.error?.message || "Bad Request"}`);
+          continue;
         }
         await res.body?.cancel();
-        if (res.status === 404) { log(404); continue; }
-        if (res.status === 401 || res.status === 403) return failure(res.status, "stt_credentials", "The transcription service rejected its server credentials.");
-        if (res.status === 429) return failure(429, "rate_limited", "Voice transcription quota reached. Try again later.");
-        return failure(res.status >= 500 ? res.status : 502, "stt_service_error", "The transcription service is temporarily unavailable.");
+        if (res.status === 404 || res.status === 503 || res.status === 429) {
+          log(res.status, false, `Candidate ${model} returned ${res.status}, failing over`);
+          continue;
+        }
+        if (res.status === 401 || res.status === 403) {
+          return failure(res.status, "stt_credentials", "The transcription service rejected its server credentials.");
+        }
+        log(res.status, false, `Candidate ${model} failed with ${res.status}, continuing to next model`);
+        continue;
       }
+
       const data = await res.json();
       const candidateResult = data.candidates?.[0];
-      if (!candidateResult || candidateResult.finishReason !== "STOP") return failure(502, "incomplete_transcription", "Transcription did not finish.");
-      const transcript = (candidateResult.content?.parts ?? [])
+      const parts = candidateResult?.content?.parts ?? [];
+      const transcript = parts
         .filter((part: { thought?: boolean }) => !part.thought)
-        .map((part: { text?: string }) => part.text || "").join("").trim().replace(/^["']|["']$/g, "").trim();
+        .map((part: { text?: string }) => part.text || "")
+        .join("")
+        .trim()
+        .replace(/^["']|["']$/g, "")
+        .trim();
+
       if (!transcript || /^(?:\[(silence|noise|inaudible)\]|none|empty)$/i.test(transcript)) {
         return failure(422, "no_speech", "No speech was recognized.");
       }
+
       log(200, true);
-      return Response.json({ transcript, model, durationMs: Date.now() - started });
-    } catch {
+      return Response.json({ transcript, model, reqId, durationMs: Date.now() - started });
+    } catch (err: unknown) {
       if (req.signal.aborted) return failure(499, "cancelled", "Recording cancelled.");
       if (deadline.aborted) return failure(504, "timeout", "Transcription timed out.");
-      return failure(502, "stt_service_error", "The transcription service could not be reached.");
+      lastCandidateError = err instanceof Error ? err.message : "Network error";
+      log(502, false, `Candidate ${model} threw error: ${lastCandidateError}`);
+      continue;
     }
   }
-  return failure(404, "stt_unavailable", "No configured transcription model is available.");
+
+  return failure(502, "stt_service_error", `The transcription service is temporarily unavailable. (${lastCandidateError || "All candidates failed"})`);
 }

@@ -375,6 +375,7 @@ export default function MascotAssistantDialog({
       stopStreaming();
     }
 
+    const correlationId = "fwd_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6);
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
 
@@ -399,27 +400,37 @@ export default function MascotAssistantDialog({
       text: m.text,
     }));
 
-    const currentMessagesBeforeStream = [...messagesRef.current, userMessage];
-    const cancelVoice = () => {
-      abortController.abort();
-      if (abortControllerRef.current !== abortController) return;
-      abortControllerRef.current = null;
-      setIsStreaming(false);
-      setMessages(prev => prev.filter(message => message.id !== initialAssistantMessage.id));
-    };
-    voiceSignal?.addEventListener("abort", cancelVoice, { once: true });
-    setMessages([...currentMessagesBeforeStream, initialAssistantMessage]);
-    setDraft("");
-    setIsStreaming(true);
-
+    let streamedText = "";
     let finalAssistantText = "";
     let finalSources: Array<{ title: string; url: string }> | undefined = undefined;
     let isFallbackResponse = false;
 
+    const cancelVoice = () => {
+      abortController.abort();
+      if (abortControllerRef.current === abortController) {
+        abortControllerRef.current = null;
+      }
+      setIsStreaming(false);
+      // Only remove placeholder if absolutely no text was ever generated or streamed
+      if (!streamedText) {
+        setMessages(prev => prev.filter(message => message.id !== initialAssistantMessage.id));
+      }
+    };
+    voiceSignal?.addEventListener("abort", cancelVoice, { once: true });
+
+    const currentMessagesBeforeStream = [...messagesRef.current, userMessage];
+    setMessages([...currentMessagesBeforeStream, initialAssistantMessage]);
+    setDraft("");
+    setIsStreaming(true);
+
     try {
       const response = await fetch("/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...(voiceSignal && { "X-Friday-Voice": "1" }) },
+        headers: {
+          "Content-Type": "application/json",
+          "X-Friday-Correlation-Id": correlationId,
+          ...(voiceSignal && { "X-Friday-Voice": "1" }),
+        },
         body: JSON.stringify({ message: query, history: historyPayload }),
         signal: abortController.signal,
       });
@@ -431,7 +442,6 @@ export default function MascotAssistantDialog({
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let completed = false;
-      let streamedText = "";
       let sseBuffer = "";
 
       while (true) {
@@ -477,46 +487,56 @@ export default function MascotAssistantDialog({
         }
       }
 
-      if (voiceSignal && (!completed || !streamedText.trim())) throw new Error("Friday returned an incomplete reply. Please retry.");
-      finalAssistantText = streamedText || generateLocalFallback(query);
+      finalAssistantText = streamedText.trim() || generateLocalFallback(query);
+      if (!streamedText.trim()) {
+        isFallbackResponse = true;
+      }
     } catch (err: unknown) {
       const error = err as Error;
-      if (voiceSignal) {
-        finalAssistantText = abortController.signal.aborted ? "(Response cancelled)" : "Friday could not complete the voice reply.";
-        throw error;
-      }
-      if (error.name === "AbortError") {
-        finalAssistantText = "(Response cancelled)";
+      if (abortController.signal.aborted) {
+        finalAssistantText = streamedText.trim() || "(Response cancelled)";
+      } else if (streamedText.trim()) {
+        finalAssistantText = streamedText.trim();
       } else {
-        // Fallback to grounded local portfolio response
+        // High-reliability local fallback ensures Friday ALWAYS delivers a helpful answer
+        console.warn(`[Friday Assistant] [reqId: ${correlationId}] API error (${error.message}), falling back to local portfolio knowledge`);
         finalAssistantText = generateLocalFallback(query);
         isFallbackResponse = true;
       }
     } finally {
       voiceSignal?.removeEventListener("abort", cancelVoice);
-      if (abortControllerRef.current === abortController || (!voiceSignal && !abortControllerRef.current)) {
-        setIsStreaming(false);
+      setIsStreaming(false);
+      if (abortControllerRef.current === abortController) {
         abortControllerRef.current = null;
+      }
 
-        const finalAssistantMessage: Message = {
-          id: generateId("msg"),
-          sender: "assistant",
-          text: finalAssistantText,
-          isStreaming: false,
-          sources: finalSources,
-          isFallback: isFallbackResponse,
-          timestamp: Date.now(),
-        };
+      const resolvedText = finalAssistantText.trim() || streamedText.trim() || generateLocalFallback(query);
+      const finalAssistantMessage: Message = {
+        id: initialAssistantMessage.id,
+        sender: "assistant",
+        text: resolvedText,
+        isStreaming: false,
+        sources: finalSources,
+        isFallback: isFallbackResponse,
+        timestamp: Date.now(),
+      };
 
-        const completedMessages = [...currentMessagesBeforeStream, finalAssistantMessage];
-        setMessages(completedMessages);
-
-        if (!checkIsMobile()) {
-          inputRef.current?.focus({ preventScroll: true });
+      setMessages(prev => {
+        const index = prev.findIndex(m => m.id === initialAssistantMessage.id);
+        if (index >= 0) {
+          const updated = [...prev];
+          updated[index] = finalAssistantMessage;
+          return updated;
         }
+        return [...prev, finalAssistantMessage];
+      });
+
+      if (!checkIsMobile()) {
+        inputRef.current?.focus({ preventScroll: true });
       }
     }
-    return finalAssistantText;
+
+    return finalAssistantText.trim() || streamedText.trim() || generateLocalFallback(query);
   }
 
   return (

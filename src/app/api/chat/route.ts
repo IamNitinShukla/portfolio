@@ -153,13 +153,17 @@ export async function POST(req: NextRequest) {
     isPortfolioQuery: isPortfolio,
   });
 
+  const correlationId =
+    req.headers.get("x-friday-correlation-id") ||
+    ("chat_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6));
+
   // 6. Model Candidate Hierarchy with Automatic Low-Latency Failover
   // Prioritize low-latency responsive Flash models
-  const envModel = process.env.GEMINI_MODEL;
-  const primaryModel = envModel && envModel.trim() ? envModel.trim() : "gemini-flash-lite-latest";
-  const fastFallbacks = ["gemini-flash-lite-latest", "gemini-2.5-flash", "gemini-3.5-flash-lite"];
+  const envModel = process.env.GEMINI_MODEL?.trim();
+  const primaryModel = envModel || "gemini-flash-lite-latest";
+  const fastFallbacks = ["gemini-flash-lite-latest", "gemini-3.5-flash-lite", "gemini-3.8-flash", "gemini-flash-latest"];
   const voice = req.headers.get("x-friday-voice") === "1";
-  const candidateModels = voice ? [primaryModel] : Array.from(new Set([primaryModel, ...fastFallbacks]));
+  const candidateModels = Array.from(new Set([primaryModel, ...fastFallbacks].filter((m): m is string => Boolean(m))));
 
   const geminiPayload = {
     systemInstruction: {
@@ -181,8 +185,7 @@ export async function POST(req: NextRequest) {
 
   for (let i = 0; i < candidateModels.length; i++) {
     const model = candidateModels[i];
-    // 12-second timeout per candidate to allow sufficient time for code generation & explanations
-    const timeoutMs = 12000;
+    const timeoutMs = voice ? 16000 : 12000;
 
     try {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${apiKey}`;
@@ -190,7 +193,7 @@ export async function POST(req: NextRequest) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(geminiPayload),
-        signal: voice ? AbortSignal.any([req.signal, AbortSignal.timeout(40000)]) : AbortSignal.timeout(timeoutMs),
+        signal: AbortSignal.any([req.signal, AbortSignal.timeout(timeoutMs)]),
       });
 
       if (res.ok && res.body) {
@@ -200,23 +203,23 @@ export async function POST(req: NextRequest) {
       }
 
       lastErrorReason = `HTTP ${res.status} from ${model}`;
-      if (voice) {
-        activeResponse = res;
-        break;
-      }
+      console.warn(
+        `[Friday Assistant] [reqId: ${correlationId}] Candidate ${model} returned ${res.status}, checking failover`
+      );
 
-      // If 503 (high demand) or 404 (model not found), fail over immediately
-      if (res.status === 503 || res.status === 404 || res.status === 429) {
+      // If 503 (high demand), 404 (model not found), 429 (quota), or other server error, fail over immediately
+      if (res.status === 503 || res.status === 404 || res.status === 429 || res.status >= 500) {
         continue;
       }
 
-      // For other client errors (e.g. 400 Bad Request, 403 Forbidden), record and stop
-      activeResponse = res;
-      activeModel = model;
-      break;
+      // For other client errors (e.g. 400 Bad Request, 403 Forbidden), record and continue to next model
+      continue;
     } catch (e: unknown) {
       const err = e as Error;
       lastErrorReason = `${model} ${err.name || "Error"}: ${err.message}`;
+      console.warn(
+        `[Friday Assistant] [reqId: ${correlationId}] Candidate ${model} threw error: ${lastErrorReason}`
+      );
       continue;
     }
   }
@@ -225,15 +228,19 @@ export async function POST(req: NextRequest) {
   if (!activeResponse || !activeResponse.ok || !activeResponse.body) {
     const status = activeResponse ? activeResponse.status : 504;
     console.warn(
-      `[Friday Assistant] Fallback Triggered | Status: ${status} | Error: ${lastErrorReason} | Total: ${Date.now() - requestStartTime}ms | Source: Fallback`
+      `[Friday Assistant] [reqId: ${correlationId}] Fallback Triggered | Status: ${status} | Error: ${lastErrorReason} | Total: ${Date.now() - requestStartTime}ms | Source: Fallback`
     );
     return Response.json(
       {
         error: "Upstream AI model unavailable. Safe fallback is available.",
         status,
         fallbackAvailable: true,
+        correlationId,
       },
-      { status: status >= 400 && status < 600 ? status : 502 }
+      {
+        status: status >= 400 && status < 600 ? status : 502,
+        headers: { "X-Friday-Correlation-Id": correlationId },
+      }
     );
   }
 
@@ -244,7 +251,6 @@ export async function POST(req: NextRequest) {
 
   let sseBuffer = "";
   let ttft: number | null = null;
-  let voiceComplete = false;
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -252,10 +258,9 @@ export async function POST(req: NextRequest) {
         while (true) {
           const { done, value } = await upstreamReader.read();
           if (done) {
-            if (voice && !voiceComplete) throw new Error("Incomplete voice response.");
             const totalDuration = Date.now() - requestStartTime;
             console.log(
-              `[Friday Assistant] Model: ${activeModel} | Status: 200 | TTFT: ${ttft ?? totalDuration}ms | Total: ${totalDuration}ms | Source: Gemini`
+              `[Friday Assistant] [reqId: ${correlationId}] Model: ${activeModel} | Status: 200 | TTFT: ${ttft ?? totalDuration}ms | Total: ${totalDuration}ms | Source: Gemini`
             );
             controller.enqueue(
               encoder.encode(
@@ -264,6 +269,7 @@ export async function POST(req: NextRequest) {
                   model: activeModel,
                   ttft,
                   totalTime: totalDuration,
+                  correlationId,
                   sources: webSearchResults.map(s => ({ title: s.title, url: s.url })),
                 })}\n\n`
               )
@@ -287,7 +293,6 @@ export async function POST(req: NextRequest) {
               try {
                 const parsed = JSON.parse(jsonStr);
                 const candidate = parsed.candidates?.[0];
-                if (voice && candidate?.finishReason === "STOP") voiceComplete = true;
                 const textPart = voice
                   ? candidate?.content?.parts?.filter((part: { thought?: boolean }) => !part.thought)
                     .map((part: { text?: string }) => part.text || "").join("")
@@ -325,6 +330,7 @@ export async function POST(req: NextRequest) {
       Connection: "keep-alive",
       "X-Accel-Buffering": "no",
       "X-Model-Used": activeModel,
+      "X-Friday-Correlation-Id": correlationId,
     },
   });
 }
