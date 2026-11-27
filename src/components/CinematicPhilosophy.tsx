@@ -131,7 +131,7 @@ export default function CinematicPhilosophy() {
           className="pointer-events-none absolute inset-0 z-0 overflow-hidden flex items-center justify-center select-none"
           aria-hidden="true"
         >
-          <div className="relative w-full max-w-[1280px] h-[70vh] sm:h-[80vh] max-h-[720px] opacity-[0.16] sm:opacity-[0.20] blur-[16px] sm:blur-[22px] contrast-75 brightness-[0.45] scale-105 sm:scale-110">
+          <div className="relative w-full max-w-[1240px] h-[55vh] sm:h-[72vh] max-h-[660px] opacity-35 sm:opacity-40 blur-[5px] sm:blur-[7px]">
             <Image
               src="/images/creative-hands.svg"
               alt=""
@@ -143,8 +143,8 @@ export default function CinematicPhilosophy() {
           </div>
 
           {/* Dark Overlay for seamless blending into pure black */}
-          <div className="absolute inset-0 bg-black/55 backdrop-blur-[1px]" />
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_30%,#000000_85%)]" />
+          <div className="absolute inset-0 bg-black/30" />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_20%,#000000_82%)]" />
         </div>
 
         {/* Centered Massive Typography Stage (Synchronized Crossfade) */}
