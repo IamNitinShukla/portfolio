@@ -14,6 +14,7 @@ import ExperienceTimeline from "@/components/ExperienceTimeline";
 import Education from "@/components/Education";
 import Achievements from "@/components/Achievements";
 import Contact from "@/components/Contact";
+import BookingModal from "@/components/BookingModal";
 import CursorSpotlight from "@/components/CursorSpotlight";
 import Intro from "@/components/Intro";
 import PortfolioMascot from "@/components/PortfolioMascot";
@@ -26,7 +27,15 @@ const CommandPalette = dynamic(() => import("@/components/CommandPalette"), {
 export default function Home() {
   const [terminalOpen, setTerminalOpen] = useState(false);
   const [contactModalOpen, setContactModalOpen] = useState(false);
+  const [bookingModalOpen, setBookingModalOpen] = useState(false);
   const [showIntro, setShowIntro] = useState(true);
+
+  // Global open-booking-modal event listener
+  useEffect(() => {
+    const handleOpenBooking = () => setBookingModalOpen(true);
+    window.addEventListener("open-booking-modal", handleOpenBooking);
+    return () => window.removeEventListener("open-booking-modal", handleOpenBooking);
+  }, []);
 
   // Check if intro has already been seen in this session or if user prefers reduced motion
   useEffect(() => {
@@ -75,6 +84,7 @@ export default function Home() {
         <Navigation
           onOpenTerminal={() => setTerminalOpen(true)}
           onOpenContact={() => setContactModalOpen(true)}
+          onOpenBooking={() => setBookingModalOpen(true)}
         />
 
         {/* Hero Section */}
@@ -106,6 +116,12 @@ export default function Home() {
 
         {/* Contact, Meeting Scheduler & Direct Inquiry Form (Serves as the clean Yogender-inspired closing section) */}
         <Contact isOpen={contactModalOpen} onOpenChange={setContactModalOpen} />
+
+        {/* Cal.com Scheduling Booking Modal */}
+        <BookingModal
+          isOpen={bookingModalOpen}
+          onClose={() => setBookingModalOpen(false)}
+        />
 
         {/* Interactive Command Palette / Quick Terminal Modal (⌘K) */}
         <CommandPalette isOpen={terminalOpen} onClose={() => setTerminalOpen(false)} />

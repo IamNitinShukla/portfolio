@@ -149,7 +149,7 @@ export const portfolioData = {
     twitter: socialLinks.twitter,
     upiId: "guesswho@pingpay",
     upiUri: "upi://pay?pa=guesswho%40pingpay&pn=Nitin%20Shukla&cu=INR",
-    calDotCom: "https://cal.com/placeholder-dev/30min",
+    calDotCom: "https://cal.com/nitinshukla/30min",
     resumeUrl: "/resume-placeholder.pdf",
     avatar: "/images/profile/nitin-01.jpg",
     profileImages: [
