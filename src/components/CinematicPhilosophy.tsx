@@ -10,11 +10,43 @@ import {
   useReducedMotion,
 } from "framer-motion";
 
-const stages = [
-  { word: "SIMPLE", subheading: "Clarity over complexity." },
-  { word: "FAST", subheading: "Respect every millisecond." },
-  { word: "USEFUL", subheading: "Solve what actually matters." },
-  { word: "CRAFTED", subheading: "Details make the difference." },
+interface Stage {
+  word: string;
+  prefix: string;
+  outlined: string;
+  suffix: string;
+  subheading: string;
+}
+
+const stages: Stage[] = [
+  {
+    word: "SIMPLE",
+    prefix: "SIMP",
+    outlined: "L",
+    suffix: "E",
+    subheading: "Clarity over complexity.",
+  },
+  {
+    word: "FAST",
+    prefix: "FA",
+    outlined: "S",
+    suffix: "T",
+    subheading: "Respect every millisecond.",
+  },
+  {
+    word: "USEFUL",
+    prefix: "USEF",
+    outlined: "U",
+    suffix: "L",
+    subheading: "Solve what actually matters.",
+  },
+  {
+    word: "CRAFTED",
+    prefix: "CRAFT",
+    outlined: "E",
+    suffix: "D",
+    subheading: "Details make the difference.",
+  },
 ];
 
 export default function CinematicPhilosophy() {
@@ -126,14 +158,14 @@ export default function CinematicPhilosophy() {
       {/* Sticky Fullscreen Cinematic Viewport Container */}
       <div className="sticky top-0 h-screen w-full overflow-hidden bg-black flex items-center justify-center px-4 sm:px-8 z-20">
         
-        {/* Stationary Atmospheric Robotic Background */}
+        {/* Stationary Atmospheric Red Robot Mascot Background */}
         <div
           className="pointer-events-none absolute inset-0 z-0 overflow-hidden flex items-center justify-center select-none"
           aria-hidden="true"
         >
-          <div className="relative w-full max-w-[1240px] h-[55vh] sm:h-[72vh] max-h-[660px] opacity-35 sm:opacity-40 blur-[5px] sm:blur-[7px]">
+          <div className="relative w-[75vw] max-w-[560px] aspect-square opacity-20 sm:opacity-25 blur-[36px] sm:blur-[52px] brightness-75 contrast-125">
             <Image
-              src="/images/creative-hands.svg"
+              src="/images/red-robot-mascot.png"
               alt=""
               fill
               priority
@@ -143,8 +175,8 @@ export default function CinematicPhilosophy() {
           </div>
 
           {/* Dark Overlay for seamless blending into pure black */}
-          <div className="absolute inset-0 bg-black/30" />
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_20%,#000000_82%)]" />
+          <div className="absolute inset-0 bg-black/40" />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_15%,#000000_80%)]" />
         </div>
 
         {/* Centered Massive Typography Stage (Synchronized Crossfade) */}
@@ -159,9 +191,16 @@ export default function CinematicPhilosophy() {
               }}
               className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none text-center px-4"
             >
-              {/* Dominant Centered Word with Lime Full Stop */}
-              <h2 className="text-[14vw] sm:text-[11vw] lg:text-[10rem] xl:text-[11.5rem] font-black tracking-[-0.04em] text-[#F5F5F0] leading-none whitespace-nowrap">
-                {stage.word}
+              {/* Dominant Centered Word with Outlined Second-Last Letter and Lime Full Stop */}
+              <h2
+                className="text-[14vw] sm:text-[11vw] lg:text-[10rem] xl:text-[11.5rem] font-black tracking-[-0.04em] text-[#F5F5F0] leading-none whitespace-nowrap"
+                aria-label={`${stage.word}.`}
+              >
+                <span>{stage.prefix}</span>
+                <span className="text-stroke-letter" aria-hidden="true">
+                  {stage.outlined}
+                </span>
+                <span>{stage.suffix}</span>
                 <span className="text-[#E8FF70]">.</span>
               </h2>
 

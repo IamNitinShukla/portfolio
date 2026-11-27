@@ -239,6 +239,26 @@ body {
   animation: techTicker 42s linear infinite;
 }
 
+/* Editorial outlined typography letter stroke */
+.text-stroke-letter {
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  -webkit-text-stroke: 1.25px #F5F5F0;
+  paint-order: stroke fill;
+}
+
+@media (min-width: 640px) {
+  .text-stroke-letter {
+    -webkit-text-stroke: 1.75px #F5F5F0;
+  }
+}
+
+@media (min-width: 1024px) {
+  .text-stroke-letter {
+    -webkit-text-stroke: 2.2px #F5F5F0;
+  }
+}
+
 /* Reduced motion support */
 @media (prefers-reduced-motion: reduce) {
   *, ::before, ::after {
