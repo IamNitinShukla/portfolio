@@ -1,32 +1,75 @@
 import { NextRequest } from "next/server";
+import { Ratelimit } from "@upstash/ratelimit";
+import { Redis } from "@upstash/redis";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
-// Sliding-window rate limiter per client IP
-interface RateLimitRecord {
-  timestamps: number[];
-}
+// Distributed sliding-window rate limiter per client IP via Upstash Redis
+let ratelimitInstance: Ratelimit | null = null;
+let lastConfiguredUrl = "";
+let lastConfiguredToken = "";
 
-const rateLimitMap = new Map<string, RateLimitRecord>();
-const RATE_LIMIT_WINDOW_MS = 60 * 1000;
-const DEFAULT_RATE_LIMIT_RPM = 30;
+function getRateLimiter(): Ratelimit | null {
+  const url = process.env.UPSTASH_REDIS_REST_URL?.trim();
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN?.trim();
 
-function isRateLimited(ip: string): boolean {
-  const maxRpm = parseInt(process.env.GEMINI_RATE_LIMIT_RPM || "", 10) || DEFAULT_RATE_LIMIT_RPM;
-  const now = Date.now();
-  const record = rateLimitMap.get(ip) || { timestamps: [] };
-
-  record.timestamps = record.timestamps.filter(t => now - t < RATE_LIMIT_WINDOW_MS);
-
-  if (record.timestamps.length >= maxRpm) {
-    return true;
+  if (!url || !token) {
+    return null;
   }
 
-  record.timestamps.push(now);
-  rateLimitMap.set(ip, record);
-  return false;
+  if (!ratelimitInstance || url !== lastConfiguredUrl || token !== lastConfiguredToken) {
+    const redis = new Redis({
+      url,
+      token,
+      retry: false,
+      signal: () => AbortSignal.timeout(3000),
+    });
+
+    ratelimitInstance = new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(30, "60 s"),
+      analytics: false,
+      prefix: "ratelimit:stt",
+    });
+
+    lastConfiguredUrl = url;
+    lastConfiguredToken = token;
+  }
+
+  return ratelimitInstance;
+}
+
+/**
+ * Resolves a trusted client IP in the Vercel hosting environment.
+ * In Vercel production, strictly requires the edge-injected x-vercel-forwarded-for header.
+ * Rejects untrusted/spoofable headers. In development or test environments,
+ * falls back to x-real-ip, req.ip, loopback, or test headers.
+ */
+function getTrustedClientIp(req: NextRequest): string | null {
+  // 1. Vercel edge proxy trusted header (set by Vercel edge network from direct socket)
+  const vercelForwardedFor = req.headers.get("x-vercel-forwarded-for")?.split(",")[0]?.trim();
+  if (vercelForwardedFor) return vercelForwardedFor;
+
+  // 2. In non-production or non-Vercel local test environments only, allow fallbacks
+  if (process.env.NODE_ENV !== "production" || process.env.VERCEL !== "1") {
+    const realIp = req.headers.get("x-real-ip")?.trim();
+    if (realIp) return realIp;
+
+    if (req.ip && typeof req.ip === "string" && req.ip.trim()) {
+      return req.ip.trim();
+    }
+
+    const host = req.headers.get("host") || "";
+    if (host.includes("localhost") || host.includes("127.0.0.1") || host.includes("[::1]")) {
+      return "127.0.0.1";
+    }
+    const testIp = req.headers.get("x-test-client-ip")?.trim();
+    if (testIp) return testIp;
+  }
+
+  return null;
 }
 
 const MAX_AUDIO_BYTES = 3 * 1024 * 1024;
@@ -50,6 +93,8 @@ export async function POST(req: NextRequest) {
   let model: string | null = null;
   let mimeType = "";
   let bytes = 0;
+  let clientRateLimitHeaders: Record<string, string> | undefined;
+
   function log(status: number, returned = false, detail = "") {
     console.info(`[Friday Transcribe] [reqId: ${reqId}]`, {
       model, status, durationMs: Date.now() - started,
@@ -57,15 +102,56 @@ export async function POST(req: NextRequest) {
       detail: detail || undefined,
     });
   }
-  function failure(status: number, code: string, error: string, detail = "") {
+  function failure(status: number, code: string, error: string, detail = "", extraHeaders?: Record<string, string>) {
     log(status, false, detail || error);
-    return Response.json({ code, error, reqId }, { status });
+    const combinedHeaders = {
+      ...(clientRateLimitHeaders || {}),
+      ...(extraHeaders || {}),
+    };
+    return Response.json({ code, error, reqId }, { status, headers: Object.keys(combinedHeaders).length > 0 ? combinedHeaders : undefined });
   }
 
   const apiKey = process.env.GEMINI_API_KEY?.trim();
   if (!apiKey) return failure(503, "stt_unavailable", "Voice transcription is unavailable.");
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim() || req.headers.get("x-real-ip") || "unknown";
-  if (isRateLimited(ip)) return failure(429, "rate_limited", "Too many recordings. Try again in a minute.");
+
+  // 1. Establish verified client IP
+  const ip = getTrustedClientIp(req);
+  if (!ip) {
+    return failure(400, "untrusted_client", "Unable to establish verified client identity.");
+  }
+
+  // 2. Distributed rate limiting via Upstash Redis (Fail-Closed)
+  const limiter = getRateLimiter();
+  if (!limiter) {
+    log(503, false, "Upstash Redis credentials are not configured on server (failing closed)");
+    return failure(503, "rate_limiter_unavailable", "Voice transcription service rate limiting is unavailable.");
+  }
+
+  let rateLimitResult;
+  try {
+    rateLimitResult = await limiter.limit(ip);
+  } catch (err: unknown) {
+    const errMessage = err instanceof Error ? err.message : "Service error";
+    log(503, false, `Upstash rate limiter execution failure: ${errMessage} (failing closed)`);
+    return failure(503, "rate_limiter_unavailable", "Voice transcription service rate limiting is unavailable.");
+  }
+
+  if (!rateLimitResult.success) {
+    const resetSec = Math.max(1, Math.ceil((rateLimitResult.reset - Date.now()) / 1000));
+    const rateLimitHeaders: Record<string, string> = {
+      "Retry-After": resetSec.toString(),
+      "X-RateLimit-Limit": rateLimitResult.limit.toString(),
+      "X-RateLimit-Remaining": rateLimitResult.remaining.toString(),
+      "X-RateLimit-Reset": Math.ceil(rateLimitResult.reset / 1000).toString(),
+    };
+    return failure(429, "rate_limited", "Too many recordings. Try again in a minute.", `Rate limit exceeded for IP: ${ip}`, rateLimitHeaders);
+  }
+
+  clientRateLimitHeaders = {
+    "X-RateLimit-Limit": rateLimitResult.limit.toString(),
+    "X-RateLimit-Remaining": rateLimitResult.remaining.toString(),
+    "X-RateLimit-Reset": Math.ceil(rateLimitResult.reset / 1000).toString(),
+  };
 
   const type = req.headers.get("content-type")?.split(";")[0].toLowerCase().trim();
   const json = type === "application/json";
@@ -193,7 +279,10 @@ export async function POST(req: NextRequest) {
       }
 
       log(200, true);
-      return Response.json({ transcript, model, reqId, durationMs: Date.now() - started });
+      return Response.json(
+        { transcript, model, reqId, durationMs: Date.now() - started },
+        { headers: clientRateLimitHeaders }
+      );
     } catch (err: unknown) {
       if (req.signal.aborted) return failure(499, "cancelled", "Recording cancelled.");
       if (deadline.aborted) return failure(504, "timeout", "Transcription timed out.");
