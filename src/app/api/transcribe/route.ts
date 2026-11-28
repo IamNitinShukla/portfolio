@@ -43,23 +43,24 @@ function getRateLimiter(): Ratelimit | null {
 
 /**
  * Resolves a trusted client IP in the Vercel hosting environment.
+ * In Vercel production, strictly requires the edge-injected x-vercel-forwarded-for header.
  * Rejects untrusted/spoofable headers. In development or test environments,
- * falls back to loopback or test headers.
+ * falls back to x-real-ip, req.ip, loopback, or test headers.
  */
 function getTrustedClientIp(req: NextRequest): string | null {
-  // 1. Vercel edge proxy trusted headers (cannot be forged by external clients on Vercel)
+  // 1. Vercel edge proxy trusted header (set by Vercel edge network from direct socket)
   const vercelForwardedFor = req.headers.get("x-vercel-forwarded-for")?.split(",")[0]?.trim();
   if (vercelForwardedFor) return vercelForwardedFor;
 
-  const realIp = req.headers.get("x-real-ip")?.trim();
-  if (realIp) return realIp;
+  // 2. In non-production or non-Vercel local test environments only, allow fallbacks
+  if (process.env.NODE_ENV !== "production" || process.env.VERCEL !== "1") {
+    const realIp = req.headers.get("x-real-ip")?.trim();
+    if (realIp) return realIp;
 
-  if (req.ip && typeof req.ip === "string" && req.ip.trim()) {
-    return req.ip.trim();
-  }
+    if (req.ip && typeof req.ip === "string" && req.ip.trim()) {
+      return req.ip.trim();
+    }
 
-  // 2. In non-production/development or local test environments, allow loopback host or test header
-  if (process.env.NODE_ENV !== "production" || !process.env.VERCEL) {
     const host = req.headers.get("host") || "";
     if (host.includes("localhost") || host.includes("127.0.0.1") || host.includes("[::1]")) {
       return "127.0.0.1";

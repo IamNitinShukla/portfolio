@@ -260,25 +260,53 @@ async function main() {
     // TEST 5: Untrusted Client Rejection in Production
     // ==========================================
     console.log('--- TEST 5: Untrusted client rejection in production ---');
-    console.log('  Sending request with NO trusted proxy headers in simulated Vercel production...');
+    console.log('  5A: Sending request with only x-real-ip in simulated Vercel production...');
+    const resOnlyRealIp = await fetch(`http://127.0.0.1:${nextPort}/api/transcribe`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'audio/wav',
+        'x-real-ip': '198.51.100.33', // Must NOT be accepted in production without x-vercel-forwarded-for
+      },
+      body: testWavBuffer,
+    });
+    console.log(`  5A Status with only x-real-ip: ${resOnlyRealIp.status}`);
+    const dataOnlyRealIp = await resOnlyRealIp.json();
+    if (resOnlyRealIp.status !== 400 || dataOnlyRealIp.code !== 'untrusted_client') {
+      throw new Error(`Test 5A Failed: expected HTTP 400 untrusted_client for only x-real-ip, got ${resOnlyRealIp.status}`);
+    }
+    console.log('  PASS 5A: Request containing only x-real-ip is strictly rejected in production.\n');
+
+    console.log('  5B: Sending request with only x-test-client-ip in simulated Vercel production...');
+    const resOnlyTestIp = await fetch(`http://127.0.0.1:${nextPort}/api/transcribe`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'audio/wav',
+        'x-test-client-ip': '198.51.100.44', // Must NOT be accepted in production
+      },
+      body: testWavBuffer,
+    });
+    console.log(`  5B Status with only x-test-client-ip: ${resOnlyTestIp.status}`);
+    const dataOnlyTestIp = await resOnlyTestIp.json();
+    if (resOnlyTestIp.status !== 400 || dataOnlyTestIp.code !== 'untrusted_client') {
+      throw new Error(`Test 5B Failed: expected HTTP 400 untrusted_client for only x-test-client-ip, got ${resOnlyTestIp.status}`);
+    }
+    console.log('  PASS 5B: Request containing only x-test-client-ip is strictly rejected in production.\n');
+
+    console.log('  5C: Sending request with only spoofed X-Forwarded-For in simulated Vercel production...');
     const resUntrusted = await fetch(`http://127.0.0.1:${nextPort}/api/transcribe`, {
       method: 'POST',
       headers: {
         'Content-Type': 'audio/wav',
-        // Omit x-vercel-forwarded-for and x-real-ip
-        'X-Forwarded-For': '99.99.99.99', // Only untrusted header
+        'X-Forwarded-For': '99.99.99.99', // Only untrusted spoof header
       },
       body: testWavBuffer,
     });
-
-    console.log(`  Status: ${resUntrusted.status}`);
+    console.log(`  5C Status with only X-Forwarded-For: ${resUntrusted.status}`);
     const dataUntrusted = await resUntrusted.json();
-    console.log(`  Body: ${JSON.stringify(dataUntrusted)}`);
-
     if (resUntrusted.status !== 400 || dataUntrusted.code !== 'untrusted_client') {
-      throw new Error(`Test 5 Failed: expected HTTP 400 untrusted_client, got ${resUntrusted.status} (${JSON.stringify(dataUntrusted)})`);
+      throw new Error(`Test 5C Failed: expected HTTP 400 untrusted_client, got ${resUntrusted.status} (${JSON.stringify(dataUntrusted)})`);
     }
-    console.log('  PASS: Untrusted client identity safely rejected without fallback assigning.\n');
+    console.log('  PASS 5C: Untrusted client identity safely rejected without fallback assigning.\n');
 
     // ==========================================
     // TEST 6: Redis Service Failure (Fail-Closed)
